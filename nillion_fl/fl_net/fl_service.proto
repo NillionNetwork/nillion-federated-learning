@@ -6,7 +6,7 @@ service FederatedLearningService {
 
   rpc RegisterClient(RegisterRequest) returns (ClientInfo) {}
 
-  rpc ScheduleLearningIteration(stream ScheduleResponse) returns (stream ScheduleRequest) {}
+  rpc ScheduleLearningIteration(stream StoreIDs) returns (stream ScheduleRequest) {}
 }
 
 message RegisterRequest {}
@@ -17,7 +17,7 @@ message ClientInfo {
 }
 
 // For the first iteration the ScheduleResponse has a store_id = token
-message ScheduleResponse {
+message StoreIDs {
   repeated string store_ids = 1;
   string party_id = 2;
 }

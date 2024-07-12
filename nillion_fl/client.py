@@ -1,4 +1,6 @@
 import grpc
+import time
+import uuid
 
 import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
 import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
@@ -14,15 +16,21 @@ class FederatedLearningClient:
         self.client_info = self.stub.RegisterClient(request)
         print(f"Registered with client_id: {self.client_info.client_id}, token: {self.client_info.token}")
 
-    def schedule_learning_iteration(self, program_id, user_id, batch_size, num_parties):
-        request = fl_pb2.ScheduleRequest(
-            program_id=program_id,
-            user_id=user_id,
-            batch_size=batch_size,
-            num_parties=num_parties
-        )
-        response = self.stub.ScheduleLearningIteration(request)
-        print(f"Scheduled learning iteration with store_ids: {response.store_ids}, party_id: {response.party_id}")
+    def schedule_learning_iteration(self):
+        def generate_responses():
+            responses = [
+                fl_pb2.ScheduleResponse(store_ids=[str(uuid.uuid4()) for _ in range(5)], party_id=str(uuid.uuid4())),
+                #fl_pb2.ScheduleResponse(store_ids=[str(uuid.uuid4()) for _ in range(5)], party_id=str(uuid.uuid4())),
+                #fl_pb2.ScheduleResponse(store_ids=[str(uuid.uuid4()) for _ in range(5)], party_id=str(uuid.uuid4()))
+            ]
+            for response in responses:
+                print("RETURNING: ", response)
+                yield response
+                time.sleep(1)  # Simulate some processing time
+
+        requests = self.stub.ScheduleLearningIteration(generate_responses())
+        for request in requests:
+            print(f"Received response - store_ids: {request.program_id}, party_id: {request.user_id}")
 
 def run():
     client = FederatedLearningClient()
@@ -30,13 +38,8 @@ def run():
     # Register client
     client.register_client()
     
-    # Schedule learning iteration
-    client.schedule_learning_iteration(
-        program_id="example_program",
-        user_id="example_user",
-        batch_size=32,
-        num_parties=3
-    )
+    # Schedule learning iterations
+    client.schedule_learning_iteration()
 
 if __name__ == '__main__':
     run()

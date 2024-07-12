@@ -46,7 +46,7 @@ class FederatedLearningServiceStub(object):
                 _registered_method=True)
         self.ScheduleLearningIteration = channel.stream_stream(
                 '/fl_net.FederatedLearningService/ScheduleLearningIteration',
-                request_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleResponse.SerializeToString,
+                request_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.StoreIDs.SerializeToString,
                 response_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleRequest.FromString,
                 _registered_method=True)
 
@@ -76,7 +76,7 @@ def add_FederatedLearningServiceServicer_to_server(servicer, server):
             ),
             'ScheduleLearningIteration': grpc.stream_stream_rpc_method_handler(
                     servicer.ScheduleLearningIteration,
-                    request_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleResponse.FromString,
+                    request_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.StoreIDs.FromString,
                     response_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleRequest.SerializeToString,
             ),
     }
@@ -132,7 +132,7 @@ class FederatedLearningService(object):
             request_iterator,
             target,
             '/fl_net.FederatedLearningService/ScheduleLearningIteration',
-            nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleResponse.SerializeToString,
+            nillion__fl_dot_fl__net_dot_fl__service__pb2.StoreIDs.SerializeToString,
             nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleRequest.FromString,
             options,
             channel_credentials,
