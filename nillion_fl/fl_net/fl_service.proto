@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-// package federated_learning;
+package fl_net;
 
 service FederatedLearningService {
 
   rpc RegisterClient(RegisterRequest) returns (ClientInfo) {}
 
-  rpc ScheduleLearningIteration(ScheduleRequest) returns (ScheduleResponse) {}
+  rpc ScheduleLearningIteration(stream ScheduleResponse) returns (stream ScheduleRequest) {}
 }
 
 message RegisterRequest {}

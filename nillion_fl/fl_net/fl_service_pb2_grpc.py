@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from nillion_fl.grpc import fl_service_pb2 as nillion__fl_dot_grpc_dot_fl__service__pb2
+from nillion_fl.fl_net import fl_service_pb2 as nillion__fl_dot_fl__net_dot_fl__service__pb2
 
 GRPC_GENERATED_VERSION = '1.64.1'
 GRPC_VERSION = grpc.__version__
@@ -20,7 +20,7 @@ except ImportError:
 if _version_not_supported:
     warnings.warn(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in nillion_fl/grpc/fl_service_pb2_grpc.py depends on'
+        + f' but the generated code in nillion_fl/fl_net/fl_service_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -31,9 +31,7 @@ if _version_not_supported:
 
 
 class FederatedLearningServiceStub(object):
-    """package federated_learning;
-
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -42,21 +40,19 @@ class FederatedLearningServiceStub(object):
             channel: A grpc.Channel.
         """
         self.RegisterClient = channel.unary_unary(
-                '/FederatedLearningService/RegisterClient',
-                request_serializer=nillion__fl_dot_grpc_dot_fl__service__pb2.RegisterRequest.SerializeToString,
-                response_deserializer=nillion__fl_dot_grpc_dot_fl__service__pb2.ClientInfo.FromString,
+                '/fl_net.FederatedLearningService/RegisterClient',
+                request_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.RegisterRequest.SerializeToString,
+                response_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ClientInfo.FromString,
                 _registered_method=True)
-        self.ScheduleLearningIteration = channel.unary_unary(
-                '/FederatedLearningService/ScheduleLearningIteration',
-                request_serializer=nillion__fl_dot_grpc_dot_fl__service__pb2.ScheduleRequest.SerializeToString,
-                response_deserializer=nillion__fl_dot_grpc_dot_fl__service__pb2.ScheduleResponse.FromString,
+        self.ScheduleLearningIteration = channel.stream_stream(
+                '/fl_net.FederatedLearningService/ScheduleLearningIteration',
+                request_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleResponse.SerializeToString,
+                response_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleRequest.FromString,
                 _registered_method=True)
 
 
 class FederatedLearningServiceServicer(object):
-    """package federated_learning;
-
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def RegisterClient(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -64,7 +60,7 @@ class FederatedLearningServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ScheduleLearningIteration(self, request, context):
+    def ScheduleLearningIteration(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -75,26 +71,24 @@ def add_FederatedLearningServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'RegisterClient': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterClient,
-                    request_deserializer=nillion__fl_dot_grpc_dot_fl__service__pb2.RegisterRequest.FromString,
-                    response_serializer=nillion__fl_dot_grpc_dot_fl__service__pb2.ClientInfo.SerializeToString,
+                    request_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.RegisterRequest.FromString,
+                    response_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ClientInfo.SerializeToString,
             ),
-            'ScheduleLearningIteration': grpc.unary_unary_rpc_method_handler(
+            'ScheduleLearningIteration': grpc.stream_stream_rpc_method_handler(
                     servicer.ScheduleLearningIteration,
-                    request_deserializer=nillion__fl_dot_grpc_dot_fl__service__pb2.ScheduleRequest.FromString,
-                    response_serializer=nillion__fl_dot_grpc_dot_fl__service__pb2.ScheduleResponse.SerializeToString,
+                    request_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleResponse.FromString,
+                    response_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleRequest.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'FederatedLearningService', rpc_method_handlers)
+            'fl_net.FederatedLearningService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('FederatedLearningService', rpc_method_handlers)
+    server.add_registered_method_handlers('fl_net.FederatedLearningService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
 class FederatedLearningService(object):
-    """package federated_learning;
-
-    """
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
     def RegisterClient(request,
@@ -110,9 +104,9 @@ class FederatedLearningService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/FederatedLearningService/RegisterClient',
-            nillion__fl_dot_grpc_dot_fl__service__pb2.RegisterRequest.SerializeToString,
-            nillion__fl_dot_grpc_dot_fl__service__pb2.ClientInfo.FromString,
+            '/fl_net.FederatedLearningService/RegisterClient',
+            nillion__fl_dot_fl__net_dot_fl__service__pb2.RegisterRequest.SerializeToString,
+            nillion__fl_dot_fl__net_dot_fl__service__pb2.ClientInfo.FromString,
             options,
             channel_credentials,
             insecure,
@@ -124,7 +118,7 @@ class FederatedLearningService(object):
             _registered_method=True)
 
     @staticmethod
-    def ScheduleLearningIteration(request,
+    def ScheduleLearningIteration(request_iterator,
             target,
             options=(),
             channel_credentials=None,
@@ -134,12 +128,12 @@ class FederatedLearningService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
+        return grpc.experimental.stream_stream(
+            request_iterator,
             target,
-            '/FederatedLearningService/ScheduleLearningIteration',
-            nillion__fl_dot_grpc_dot_fl__service__pb2.ScheduleRequest.SerializeToString,
-            nillion__fl_dot_grpc_dot_fl__service__pb2.ScheduleResponse.FromString,
+            '/fl_net.FederatedLearningService/ScheduleLearningIteration',
+            nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleResponse.SerializeToString,
+            nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleRequest.FromString,
             options,
             channel_credentials,
             insecure,
