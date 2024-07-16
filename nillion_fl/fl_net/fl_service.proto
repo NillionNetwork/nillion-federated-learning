@@ -20,6 +20,7 @@ message ClientInfo {
 message StoreIDs {
   repeated string store_ids = 1;
   string party_id = 2;
+  string token = 3;
 }
 
 message ScheduleRequest{

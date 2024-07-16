@@ -3,79 +3,82 @@ from concurrent import futures
 import time
 import uuid
 import threading
+import logging
 
 import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
 import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
-    def __init__(self):
+    def __init__(self, num_parties):
         self.clients = {}
-        self.active_streams = set()
+        self.active_streams = {}
+        self.num_parties = num_parties
 
+    def is_valid_token(self, token):
+        return token in self.clients
 
+    def is_initial_request(self, request):
+        return len(request.store_ids) == 0 and request.party_id == "" and request.token != ""
+    
     def RegisterClient(self, request, context):
         client_id = len(self.clients) + 1
         token = str(uuid.uuid4())
-        self.clients[client_id] = token
+        self.clients[token] = client_id
         return fl_pb2.ClientInfo(client_id=client_id, token=token)
 
     def ScheduleLearningIteration(self, request_iterator, context):
-
-        def listen_for_requests():
-            for request in request_iterator:
-                print(f"[SERVER][{stream_id}] Received request: {request}")
-                # Process the request if needed
-
-        print("[SERVER] STARTING THREAD FOR CLIENT REQUESTS")
-        # Start a new thread to listen for incoming requests
-        threading.Thread(target=listen_for_requests, daemon=True).start()
-
-       # Add this stream to active streams
         stream_id = str(uuid.uuid4())
-        self.active_streams.add(stream_id)
+        def client_handler():
+            for request in request_iterator:
+                
+                if not self.is_valid_token(request.token):
+                    logger.warning(f"[SERVER][{stream_id}] Invalid token: {request.token}")
+                    continue
 
-        try:
-            while stream_id in self.active_streams:
-                print("[SERVER] SENDING MESSAGE")
-                response = fl_pb2.ScheduleRequest(
-                    program_id=stream_id,
+                if self.is_initial_request(request):
+                    self.ready.add(request.token)
+                    logger.info(f"[SERVER][{stream_id}] Received initial request: {request}")
+                    if self.ready
+
+                if self.is_valid_token(request.token):
+                    pass
+                    
+                logger.info(f"[SERVER][{stream_id}] Received store_ids: {request.store_ids}")
+                time.sleep(60)
+                yield fl_pb2.ScheduleRequest(
+                    program_id=str(uuid.uuid4()),
                     user_id="user_456",
                     batch_size=32,
                     num_parties=5
                 )
-                yield response
-                time.sleep(5)  # Wait for 5 seconds before sending the next message
-        finally:
-            self.active_streams.remove(stream_id)
+        logger.info("[SERVER] CLIENT DISCONNECTED")
+        return None
+        
+    def listen_for_requests(self, request_iterator, stream_id):
+        try:
+            for request in request_iterator:
+                logger.info(f"[SERVER][{stream_id}] Received request: {request}")
+        except grpc.RpcError:
+            logger.info("[SERVER] CLIENT DISCONNECTED")
 
-        # for request in request_iterator:
-        #     # Process the incoming request
-        #     print(f"Received request: {request}")
-            
-        #     learning_requests = [
-        #         fl_pb2.ScheduleRequest(program_id="program1", user_id="user1", batch_size=32, num_parties=3),
-        #         fl_pb2.ScheduleRequest(program_id="program2", user_id="user2", batch_size=64, num_parties=4),
-        #         fl_pb2.ScheduleRequest(program_id="program3", user_id="user3", batch_size=128, num_parties=5)
-        #     ]
-        #     yield learning_requests[0]
+    def serve(self):
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        fl_pb2_grpc.add_FederatedLearningServiceServicer_to_server(
+            FederatedLearningServicer(num_parties=5), server)
+        server.add_insecure_port('[::]:50051')
 
-
-
-
-def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    fl_pb2_grpc.add_FederatedLearningServiceServicer_to_server(
-        FederatedLearningServicer(), server)
-    #server.add_insecure_port('[::]:50051')
-    server_creds = grpc.alts_server_credentials()
-    server.add_secure_port('[::]:50051', server_creds)
-    server.start()
-    try:
-        while True:
-            time.sleep(86400)
-    except KeyboardInterrupt:
-        server.stop(0)
+        server.start()
+        logger.info("Server started. Listening on port 50051.")
+        try:
+            while True:
+                time.sleep(86400)
+        except KeyboardInterrupt:
+            logger.info("Server stopping...")
+            server.stop(0)
 
 if __name__ == '__main__':
-    serve()
+    FederatedLearningServicer(num_parties=5).serve()

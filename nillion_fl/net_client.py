@@ -6,12 +6,13 @@ import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
 import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
 
 class FederatedLearningClient:
-    def __init__(self, host='localhost', port=50051):
-        #self.channel = grpc.insecure_channel(f'{host}:{port}')
-        channel_creds = grpc.alts_channel_credentials()
-        self.channel = grpc.secure_channel(f'{host}:{port}', channel_creds)
-        self.stub = fl_pb2_grpc.FederatedLearningServiceStub(self.channel)
-        self.client_info = None
+    def __init__(self, net, trainloader, valloader):
+        self.net = net
+        self.trainloader = trainloader
+        self.valloader = valloader
+
+        self.responses = []
+
 
     def register_client(self):
         request = fl_pb2.RegisterRequest()
@@ -20,33 +21,61 @@ class FederatedLearningClient:
 
     def schedule_learning_iteration(self):
         def generate_responses():
-            responses = [
-                fl_pb2.StoreIDs(store_ids=[], party_id=""),
-                fl_pb2.StoreIDs(store_ids=[str(uuid.uuid4()) for _ in range(1)], party_id=str(uuid.uuid4())),
-                fl_pb2.StoreIDs(store_ids=[str(uuid.uuid4()) for _ in range(2)], party_id=str(uuid.uuid4())),
-                fl_pb2.StoreIDs(store_ids=[str(uuid.uuid4()) for _ in range(3)], party_id=str(uuid.uuid4()))
-            ]
-            i = 0
+            print("[CLIENT] SENDING MESSAGE")
+            yield fl_pb2.StoreIDs(store_ids=[], party_id="", token=self.client_info.token) # Empty first message
+            
             while True:
-                i %= len(responses)
-                print("[CLIENT] SENDING MESSAGE")
-                yield responses[i]
-                time.sleep(0.5)
-                i += 1
+                if len(self.responses) > 0:
+                    response = self.responses.pop(0)
+                    print("[CLIENT] SENDING MESSAGE")
+                    yield response
+                    time.sleep(0.5)
+            
+            print("[CLIENT][SEND] STOP")
+            
 
         learning_requests = self.stub.ScheduleLearningIteration(generate_responses())
         for learning_request in learning_requests:
             print("[CLIENT] RECEIVED REQUEST")
-            #print(f"Received LEARNING REQUEST: {learning_request.program_id}, USER ID: {learning_request.user_id}")
+            if learning_request.program_id[0] == "-1":
+                print("Received STOP REQUEST")
+                learning_requests.cancel()
+                self.channel.close()
+                break
+            
+            batch_size = learning_request.batch_size
+            num_parties = learning_request.num_parties
+            program_id = learning_request.program_id
+            user_id = learning_request.user_id
+
+            print("LEARNING REQUEST: ", learning_request)
+
+            self.fit()
+
+            store_ids = self.store_secrets(program_id, user_id, batch_size, num_parties)
+
+            self.responses.append(fl_pb2.StoreIDs(store_ids=store_ids, party_id="abc", token=self.client_info.token))
+
+    def start_client(self, host='localhost', port=50051):
+        self.channel = grpc.insecure_channel(f'{host}:{port}')
+        self.stub = fl_pb2_grpc.FederatedLearningServiceStub(self.channel)
+        self.client_info = None
+        self.register_client() # Creates the client_id and token
+        self.schedule_learning_iteration()
+
+    def fit(self):
+        print("[CLIENT] FITTING")
+        pass
+
+    def store_secrets(sefl, program_id, user_id, batch_size, num_parties):
+        print(f"[CLIENT] STORING SECRET: {program_id}, {user_id}, {batch_size}, {num_parties}")
+        return [str(uuid.uuid4()) for _ in range(1)]
+
+
 
 def run():
-    client = FederatedLearningClient()
-    
-    # Register client
-    client.register_client()
-    
-    # Schedule learning iterations
-    client.schedule_learning_iteration()
+    client = FederatedLearningClient(None, None, None)
+    client.start_client()
 
 if __name__ == '__main__':
     run()
