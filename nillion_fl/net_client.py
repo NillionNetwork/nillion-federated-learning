@@ -46,7 +46,7 @@ class FederatedLearningClient:
         learning_requests = self.stub.ScheduleLearningIteration(generate_responses())
         for learning_request in learning_requests:
             logger.info("[CLIENT] RECEIVED REQUEST")
-            if learning_request.program_id[0] == "-1":
+            if learning_request.program_id == "-1":
                 logger.info("Received STOP REQUEST")
                 learning_requests.cancel()
                 self.channel.close()
@@ -68,6 +68,7 @@ class FederatedLearningClient:
                     store_ids=store_ids, party_id="abc", token=self.client_info.token
                 )
             )
+        return None
 
     def start_client(self, host="localhost", port=50051):
         self.channel = grpc.insecure_channel(f"{host}:{port}")
@@ -88,9 +89,11 @@ class FederatedLearningClient:
 
 
 def run():
-    client = FederatedLearningClient(None, None, None)
-    client.start_client()
-
+    try:
+        client = FederatedLearningClient(None, None, None)
+        client.start_client()
+    except KeyboardInterrupt:
+        logger.info("Client stopping...")  
 
 if __name__ == "__main__":
     run()
