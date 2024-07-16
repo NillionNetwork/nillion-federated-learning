@@ -1,85 +1,105 @@
-from net_client import FederatedLearningClient
-from typing import Dict, List, Optional, Tuple
-from collections import OrderedDict
-import numpy as np
-import torch
+import logging
+import time
+import uuid
+
+import grpc
+
+import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
+import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="[%(levelname)s] [%(asctime)s] - %(name)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
-class NillionFLClient(object):
+class FederatedLearningClient:
+    def __init__(self, net, trainloader, valloader):
+        self.net = net
+        self.trainloader = trainloader
+        self.valloader = valloader
+        self.responses = []
 
-    def __init__(self):
-        self.thread = None
-        self._net_client = None
+    def register_client(self):
+        request = fl_pb2.RegisterRequest()
+        self.client_info = self.stub.RegisterClient(request)
+        logger.info(
+            f"Registered with client_id: {self.client_info.client_id}, token: {self.client_info.token}"
+        )
 
-    @property
-    def net_client(self):
-        if not hasattr(self, '_net_client'):
-            raise ValueError("net_client is not set")
-        return self._net_client
+    def schedule_learning_iteration(self):
+        def generate_responses():
+            logger.info("[CLIENT] Sending initial message")
+            yield fl_pb2.StoreIDs(
+                store_ids=[], party_id="", token=self.client_info.token
+            )  # Empty first message
 
-    @property.setter
-    def net_client(self, value):
-        if value is None:
-            raise ValueError("net_client cannot be None")
+            while True:
+                if len(self.responses) > 0:
+                    response = self.responses.pop(0)
+                    logger.info("[CLIENT] Sending store id response")
+                    yield response
+                    time.sleep(0.5)
 
-        if self._net_client is not None:
-            raise ValueError("net_client is already set")
+            logger.info("[CLIENT][SEND] STOP")
 
-        self._net_client = value
+        learning_requests = self.stub.ScheduleLearningIteration(generate_responses())
+        for learning_request in learning_requests:
+            logger.info("[CLIENT] Received learning request")
+            if learning_request.program_id == "-1":
+                logger.info("Received STOP training request")
+                learning_requests.cancel()
+                self.channel.close()
+                break
 
-    def start_client(self, config):
-        # Create the
-        self.net_client = FederatedLearningClient(config['host'], config['port'])
-        self.net_client.register_client() # Creates the client_id and token
+            logger.info(f"Learning Request: {learning_request}")
 
-        while True:
-            self.net_client.schedule_learning_iteration()
+            (store_ids, party_id) = self.learning_iteration(learning_request)
 
-            self.fit()
+            self.responses.append(
+                fl_pb2.StoreIDs(
+                    store_ids=store_ids, party_id=party_id, token=self.client_info.token
+                )
+            )
+        return None
 
-        
+    def learning_iteration(self, learning_request):
+        parameters = self.fit()
+        store_ids = self.store_secrets(
+            learning_request.program_id,
+            learning_request.user_id,
+            learning_request.batch_size,
+            learning_request.num_parties,
+        )
+
+        return (store_ids, "abc")
+
+    def start_client(self, host="localhost", port=50051):
+        try:
+            self.channel = grpc.insecure_channel(f"{host}:{port}")
+            self.stub = fl_pb2_grpc.FederatedLearningServiceStub(self.channel)
+            self.client_info = None
+            self.register_client()  # Creates the client_id and token
+            self.schedule_learning_iteration()
+        except KeyboardInterrupt:
+            logger.info("Client stopping...")
+
     def fit(self):
+        logger.info("[CLIENT] FITTING")
         pass
 
-    def fit_batch(self):
-        pass
-        self.active_streams.add(stream_id)
+    def store_secrets(self, parameters, program_id, user_id, batch_size, num_parties):
+        logger.info(
+            f"[CLIENT] STORING SECRET: {program_id}, {user_id}, {batch_size}, {num_parties}"
+        )
+        return [str(uuid.uuid4()) for _ in range(1)]
 
 
-class PyTorchFLClient(NillionFLClient):
-
-    def __init__(self, net, trainloader, valloader, config):
-        super(PyTorchFLClient, self).__init__(net, trainloader, valloader, config)
-
-    def get_parameters(self) -> List[np.ndarray]:
-        return [val.cpu().numpy() for _, val in self.net.state_dict().items()]
-    
-    def set_parameters(net, parameters: List[np.ndarray]):
-        params_dict = zip(net.state_dict().keys(), parameters)
-        state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict})
-        net.load_state_dict(state_dict, strict=True)
-        def fit(self, parameters, config):
-        print(f"[Client {self.cid}] fit, config: {config}")
-        print("SETTING PARAMETERS")
-        set_parameters(self.net, parameters)
-        train(self.net, self.trainloader, epochs=1)
-        return get_parameters(self.net), len(self.trainloader), {}
-        ### HERE WE STORE TO THE NILLION NETWORK
-        store_id = store_weights(self.net)
-        if not isinstance(store_id, list):
-            store_id = [store_id]
-
-        return store_id, len(store_id), {}
-
-    def evaluate(self, parameters, config):
-        print(f"[Client {self.cid}] evaluate, config: {config}")
-        set_parameters(self.net, parameters)
-        loss, accuracy = test(self.net, self.valloader)
-        return float(loss), len(self.valloader), {"accuracy": float(accuracy)}
+def run():
+    client = FederatedLearningClient(None, None, None)
+    client.start_client()
 
 
-def client_fn(cid) -> NillionFlowerClient:
-    net = Net().to(DEVICE)
-    trainloader = trainloaders[int(cid)]
-    valloader = valloaders[int(cid)]
-    return NillionFlowerClient(cid, net, trainloader, valloader).to_client()
+if __name__ == "__main__":
+    run()
