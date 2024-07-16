@@ -42,7 +42,6 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
                 if self.is_initial_request(request):
                     self.ready.add(request.token)
                     logger.info(f"[SERVER][{stream_id}] Received initial request: {request}")
-                    if self.ready
 
                 if self.is_valid_token(request.token):
                     pass
