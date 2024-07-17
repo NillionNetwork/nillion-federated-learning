@@ -1,4 +1,3 @@
-import logging
 import time
 import uuid
 
@@ -6,12 +5,7 @@ import grpc
 
 import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
 import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s] [%(asctime)s] - %(name)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+from nillion_fl.logs import logger, uuid_str
 
 
 class FederatedLearningClient:
@@ -25,7 +19,7 @@ class FederatedLearningClient:
         request = fl_pb2.RegisterRequest()
         self.client_info = self.stub.RegisterClient(request)
         logger.info(
-            f"Registered with client_id: {self.client_info.client_id}, token: {self.client_info.token}"
+            f"Registered with client_id: {self.client_info.client_id}, token: {uuid_str(self.client_info.token)}"
         )
 
     def schedule_learning_iteration(self):
@@ -48,7 +42,7 @@ class FederatedLearningClient:
         for learning_request in learning_requests:
             logger.info("[CLIENT] Received learning request")
             if learning_request.program_id == "-1":
-                logger.info("Received STOP training request")
+                logger.warning("Received STOP training request")
                 learning_requests.cancel()
                 self.channel.close()
                 break
@@ -67,6 +61,7 @@ class FederatedLearningClient:
     def learning_iteration(self, learning_request):
         parameters = self.fit()
         store_ids = self.store_secrets(
+            parameters,
             learning_request.program_id,
             learning_request.user_id,
             learning_request.batch_size,
