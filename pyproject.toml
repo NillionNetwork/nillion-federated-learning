@@ -8,10 +8,11 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 grpcio = "^1.64.1"
-grpcio-tools = "^1.64.1"
+grpcio-tools = "1.62.1"
 torch = {version="^2.3.1", optional=true}
 torchvision = {version="^0.18.1", optional=true}
 numpy = "^2.0.0"
+py-nillion-client = "^0.4.0"
 
 
 [build-system]
@@ -23,7 +24,8 @@ build-backend = "poetry.core.masonry.api"
 pytest = "^8.2.0"
 pylint = "^3.2.3"
 mypy = "^1.10.0"
-grpcio-testing = "^1.64.1"
+grpcio-testing = "1.62.1"
 
 [tool.poetry.extras]
 examples = ["numpy", "pytorch", "torchvision"]
+dev = ["pytest", "pylint", "mypy", "grpcio-testing"]

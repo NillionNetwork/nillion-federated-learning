@@ -143,5 +143,7 @@ class TestFederatedLearningServicer(unittest.TestCase):
             client_request_2
         )  # Whenever it tries connecting, it is stopped
 
+        self.servicer.stop()
+
 if __name__ == "__main__":
     unittest.main()
