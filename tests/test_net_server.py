@@ -24,73 +24,48 @@ class TestFederatedLearningServicer(unittest.TestCase):
             grpc_testing.strict_real_time(),
         )
 
-    # def test_register_client(self):
-    #     print("." * 100)
-    #     print("Testing test_register_client")
-    #     print("." * 100)
-    #     request = fl_pb2.RegisterRequest()
-    #     method = self.test_server.invoke_unary_unary(
-    #         fl_pb2.DESCRIPTOR.services_by_name['FederatedLearningService'].methods_by_name['RegisterClient'],
-    #         (),
-    #         request,
-    #         None
-    #     )
-    #     response, _, _, _ = method.termination()
-    #     self.assertIsInstance(response, fl_pb2.ClientInfo)
-    #     self.assertNotEqual(response.client_id, -1)
-    #     self.assertNotEqual(response.token, "")
+    def test_register_client(self):
+        print("." * 100)
+        print("Testing test_register_client")
+        print("." * 100)
+        request = fl_pb2.RegisterRequest()
+        method = self.test_server.invoke_unary_unary(
+            fl_pb2.DESCRIPTOR.services_by_name['FederatedLearningService'].methods_by_name['RegisterClient'],
+            (),
+            request,
+            None
+        )
+        response, _, _, _ = method.termination()
+        self.assertIsInstance(response, fl_pb2.ClientInfo)
+        self.assertNotEqual(response.client_id, -1)
+        self.assertNotEqual(response.token, "")
 
-    # def test_register_client_max_reached(self):
-    #     print("." * 100)
-    #     print("Testing test_register_client_max_reached")
-    #     print("." * 100)
-    #     # Register two clients (max number)
-    #     for _ in range(2):
-    #         request = fl_pb2.RegisterRequest()
-    #         method = self.test_server.invoke_unary_unary(
-    #             fl_pb2.DESCRIPTOR.services_by_name['FederatedLearningService'].methods_by_name['RegisterClient'],
-    #             (),
-    #             request,
-    #             None
-    #         )
-    #         method.termination()
+    def test_register_client_max_reached(self):
+        print("." * 100)
+        print("Testing test_register_client_max_reached")
+        print("." * 100)
+        # Register two clients (max number)
+        for _ in range(2):
+            request = fl_pb2.RegisterRequest()
+            method = self.test_server.invoke_unary_unary(
+                fl_pb2.DESCRIPTOR.services_by_name['FederatedLearningService'].methods_by_name['RegisterClient'],
+                (),
+                request,
+                None
+            )
+            method.termination()
 
-    #     # Try to register a third client
-    #     request = fl_pb2.RegisterRequest()
-    #     method = self.test_server.invoke_unary_unary(
-    #         fl_pb2.DESCRIPTOR.services_by_name['FederatedLearningService'].methods_by_name['RegisterClient'],
-    #         (),
-    #         request,
-    #         None
-    #     )
-    #     response, _, _, _ = method.termination()
-    #     self.assertEqual(response.client_id, -1)
-    #     self.assertEqual(response.token, "")
-
-    # @patch('threading.Thread')
-    # def test_schedule_learning_iteration(self, mock_thread):
-    #     token = self.servicer.RegisterClient(fl_pb2.RegisterRequest(), None).token
-
-    #     def mock_request_iterator():
-    #         yield fl_pb2.StoreIDs(token=token, store_ids=["id1", "id2"])
-
-    #     context = MagicMock()
-    #     responses = list(self.servicer.ScheduleLearningIteration(mock_request_iterator(), context))
-
-    #     self.assertTrue(mock_thread.called)
-    #     self.assertEqual(len(responses), 1)
-    #     self.assertIsInstance(responses[0], fl_pb2.ScheduleRequest)
-
-    # def test_handle_client_disconnect(self):
-    #     token = self.servicer.RegisterClient(fl_pb2.RegisterRequest(), None).token
-    #     stream_id = list(self.servicer.active_streams.keys())[0]
-
-    #     self.servicer.handle_client_disconnect(stream_id)
-
-    #     self.assertNotIn(token, self.servicer.clients)
-    #     self.assertNotIn(stream_id, self.servicer.active_streams)
-    #     self.assertNotIn(stream_id, self.servicer.client_threads)
-    #     self.assertNotIn(stream_id, self.servicer.clients_queue)
+        # Try to register a third client
+        request = fl_pb2.RegisterRequest()
+        method = self.test_server.invoke_unary_unary(
+            fl_pb2.DESCRIPTOR.services_by_name['FederatedLearningService'].methods_by_name['RegisterClient'],
+            (),
+            request,
+            None
+        )
+        response, _, _, _ = method.termination()
+        self.assertEqual(response.client_id, -1)
+        self.assertEqual(response.token, "")
 
     def test_schedule_learning(self):
         print("." * 100)
@@ -167,34 +142,6 @@ class TestFederatedLearningServicer(unittest.TestCase):
         rpc_b.send_request(
             client_request_2
         )  # Whenever it tries connecting, it is stopped
-
-    # @patch('threading.Event.wait')
-    # def test_end_learning_for_all_clients(self, mock_wait):
-    #     mock_wait.return_value = True
-    #     self.servicer.RegisterClient(fl_pb2.RegisterRequest(), None)
-    #     self.servicer.RegisterClient(fl_pb2.RegisterRequest(), None)
-
-    #     self.servicer.learning_in_progress = True
-    #     self.servicer.end_learning_for_all_clients()
-
-    #     self.assertFalse(self.servicer.learning_in_progress)
-    #     for queue in self.servicer.clients_queue.values():
-    #         self.assertFalse(queue.empty())
-    #         message = queue.get()
-    #         self.assertEqual(message.program_id, "-1")
-
-    # @patch('grpc.server')
-    # @patch('time.sleep', side_effect=KeyboardInterrupt)
-    # def test_serve(self, mock_sleep, mock_server):
-    #     mock_server_instance = MagicMock()
-    #     mock_server.return_value = mock_server_instance
-
-    #     with self.assertRaises(KeyboardInterrupt):
-    #         self.servicer.serve()
-
-    #     mock_server_instance.start.assert_called_once()
-    #     mock_server_instance.stop.assert_called_once()
-
 
 if __name__ == "__main__":
     unittest.main()

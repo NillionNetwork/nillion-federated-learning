@@ -67,7 +67,6 @@ class FederatedLearningClient:
             learning_request.batch_size,
             learning_request.num_parties,
         )
-
         return (store_ids, "abc")
 
     def start_client(self, host="localhost", port=50051):
