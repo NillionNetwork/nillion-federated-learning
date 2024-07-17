@@ -1,0 +1,7 @@
+name = "fed_avg"
+version = "0.1.0"
+authors = [""]
+
+[[programs]]
+path = "src/fed_avg.py"
+prime_size = 128

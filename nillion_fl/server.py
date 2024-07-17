@@ -7,10 +7,12 @@ from enum import Enum
 from queue import Queue
 
 import grpc
+import asyncio
 
 import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
 import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
 from nillion_fl.logs import logger, uuid_str
+from nillion_fl.nillion_network.server import FedAvgNillionNetworkServer, MAX_SECRET_BATCH_SIZE
 
 
 class ClientState(Enum):
@@ -20,6 +22,7 @@ class ClientState(Enum):
 
 
 class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
+
     def __init__(self, num_parties):
         # A dictionary mapping a token to a client_id
         self.clients = {}
@@ -36,6 +39,11 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         self.lock = threading.Lock()
         self.learning_in_progress = False
         self.learning_complete = threading.Event()
+        self.batch_size = int(MAX_SECRET_BATCH_SIZE / self.num_parties)
+
+        self.nillion_server = FedAvgNillionNetworkServer(num_parties)
+        self.nillion_server.compile_program(self.batch_size, self.num_parties)
+        self.program_id = asyncio.run(self.nillion_server.store_program())
 
     def __del__(self):
         self.end_learning_for_all_clients()
@@ -63,7 +71,7 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
                 context.set_details("The maximum number of clients has been reached.")
                 return fl_pb2.ClientInfo(client_id=-1, token="")
 
-            client_id = len(self.clients) + 1
+            client_id = len(self.clients)
             token = str(uuid.uuid4())
             self.clients[token] = client_id
             logger.info(
@@ -78,9 +86,9 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             for client_stream_id in self.clients_queue.keys():
                 self.clients_queue[client_stream_id].put(
                     fl_pb2.ScheduleRequest(
-                        program_id=client_stream_id,
-                        user_id="user_456",
-                        batch_size=int(5000 / self.num_parties),
+                        program_id=self.program_id,
+                        user_id=self.nillion_server.user_id,
+                        batch_size=self.batch_size,
                         num_parties=self.num_parties,
                     )
                 )
@@ -118,6 +126,10 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
                 return ClientState.END
 
         if len(self.iteration_values) == self.num_parties:
+            store_ids = []
+            with self.lock:
+                store_ids = [request.store_ids[0] for request in self.iteration_values.values()]
+            asyncio.run(self.nillion_server.compute(store_ids))
             self.schedule_learning_iteration_messages()
             # Signal that this client has completed its part
             self.learning_complete.set()

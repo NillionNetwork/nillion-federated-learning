@@ -2,10 +2,11 @@ import time
 import uuid
 
 import grpc
-
+import asyncio
 import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
 import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
 from nillion_fl.logs import logger, uuid_str
+from nillion_fl.nillion_network.client import NillionNetworkClient
 
 
 class FederatedLearningClient:
@@ -14,6 +15,9 @@ class FederatedLearningClient:
         self.trainloader = trainloader
         self.valloader = valloader
         self.responses = []
+        self.client_info = None
+        self.nillion_client = None
+        
 
     def register_client(self):
         request = fl_pb2.RegisterRequest()
@@ -21,6 +25,7 @@ class FederatedLearningClient:
         logger.info(
             f"Registered with client_id: {self.client_info.client_id}, token: {uuid_str(self.client_info.token)}"
         )
+        self.nillion_client = NillionNetworkClient(self.client_info.client_id, self.client_info.num_parties)
 
     def schedule_learning_iteration(self):
         def generate_responses():
@@ -87,7 +92,18 @@ class FederatedLearningClient:
         logger.info(
             f"[CLIENT] STORING SECRET: {program_id}, {user_id}, {batch_size}, {num_parties}"
         )
-        return [str(uuid.uuid4()) for _ in range(1)]
+        
+        # Create a batch of maximum batch size of the parameters vector
+        store_ids = []
+        
+        for i in range(0, len(parameters), batch_size):
+            batch = parameters[i : i + batch_size]
+            # fill batch with zeros
+
+            store_id = asyncio.run(self.nillion_client.store_array(batch, "parameters", program_id, user_id))
+            store_ids.append(store_id)
+        
+        return store_ids
 
 
 def run():

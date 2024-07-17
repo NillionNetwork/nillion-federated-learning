@@ -30,10 +30,12 @@ class TestFederatedLearningServicer(unittest.TestCase):
         print("." * 100)
         request = fl_pb2.RegisterRequest()
         method = self.test_server.invoke_unary_unary(
-            fl_pb2.DESCRIPTOR.services_by_name['FederatedLearningService'].methods_by_name['RegisterClient'],
+            fl_pb2.DESCRIPTOR.services_by_name[
+                "FederatedLearningService"
+            ].methods_by_name["RegisterClient"],
             (),
             request,
-            None
+            None,
         )
         response, _, _, _ = method.termination()
         self.assertIsInstance(response, fl_pb2.ClientInfo)
@@ -48,20 +50,24 @@ class TestFederatedLearningServicer(unittest.TestCase):
         for _ in range(2):
             request = fl_pb2.RegisterRequest()
             method = self.test_server.invoke_unary_unary(
-                fl_pb2.DESCRIPTOR.services_by_name['FederatedLearningService'].methods_by_name['RegisterClient'],
+                fl_pb2.DESCRIPTOR.services_by_name[
+                    "FederatedLearningService"
+                ].methods_by_name["RegisterClient"],
                 (),
                 request,
-                None
+                None,
             )
             method.termination()
 
         # Try to register a third client
         request = fl_pb2.RegisterRequest()
         method = self.test_server.invoke_unary_unary(
-            fl_pb2.DESCRIPTOR.services_by_name['FederatedLearningService'].methods_by_name['RegisterClient'],
+            fl_pb2.DESCRIPTOR.services_by_name[
+                "FederatedLearningService"
+            ].methods_by_name["RegisterClient"],
             (),
             request,
-            None
+            None,
         )
         response, _, _, _ = method.termination()
         self.assertEqual(response.client_id, -1)
@@ -144,6 +150,7 @@ class TestFederatedLearningServicer(unittest.TestCase):
         )  # Whenever it tries connecting, it is stopped
 
         self.servicer.stop()
+
 
 if __name__ == "__main__":
     unittest.main()
