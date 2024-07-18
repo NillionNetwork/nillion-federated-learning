@@ -1,18 +1,20 @@
+import asyncio
 import logging
 import threading
 import time
+import traceback
 import uuid
 from concurrent import futures
 from enum import Enum
 from queue import Queue
 
 import grpc
-import asyncio
 
 import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
 import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
 from nillion_fl.logs import logger, uuid_str
-from nillion_fl.nillion_network.server import FedAvgNillionNetworkServer, MAX_SECRET_BATCH_SIZE
+from nillion_fl.nillion_network.server import (MAX_SECRET_BATCH_SIZE,
+                                               FedAvgNillionNetworkServer)
 
 
 class ClientState(Enum):
@@ -24,6 +26,12 @@ class ClientState(Enum):
 class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
 
     def __init__(self, num_parties):
+        # The total number of parties
+        self.num_parties = num_parties
+        # The batch size for each party
+        self.batch_size = int(MAX_SECRET_BATCH_SIZE / self.num_parties)
+        self.batch_size = 10
+
         # A dictionary mapping a token to a client_id
         self.clients = {}
         # A dictionary mapping a stream id to a token
@@ -34,13 +42,15 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         self.clients_queue = {}
         # A dictionary mapping the current iteration of received values.
         self.iteration_values = {}
-        # The total number of parties
-        self.num_parties = num_parties
-        self.lock = threading.Lock()
-        self.learning_in_progress = False
-        self.learning_complete = threading.Event()
-        self.batch_size = int(MAX_SECRET_BATCH_SIZE / self.num_parties)
 
+        # Lock to ensure thread safety
+        self.lock = threading.Lock()
+        # Flag to indicate if learning is in progress
+        self.learning_in_progress = False
+        # Event to signal the completion of learning for all clients
+        self.learning_complete = threading.Event()
+
+        # FedAvgNillionNetworkServer instance
         self.nillion_server = FedAvgNillionNetworkServer(num_parties)
         self.nillion_server.compile_program(self.batch_size, self.num_parties)
         self.program_id = asyncio.run(self.nillion_server.store_program())
@@ -69,7 +79,9 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             if len(self.clients) >= self.num_parties:
                 context.set_code(grpc.StatusCode.RESOURCE_EXHAUSTED)
                 context.set_details("The maximum number of clients has been reached.")
-                return fl_pb2.ClientInfo(client_id=-1, token="")
+                return fl_pb2.ClientInfo(
+                    client_id=-1, token="", num_parties=self.num_parties
+                )
 
             client_id = len(self.clients)
             token = str(uuid.uuid4())
@@ -77,21 +89,22 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             logger.info(
                 f"[SERVER] Registering client [{client_id}] with token: {uuid_str(token)}"
             )
-            return fl_pb2.ClientInfo(client_id=client_id, token=token)
+            return fl_pb2.ClientInfo(
+                client_id=client_id, token=token, num_parties=self.num_parties
+            )
 
     def schedule_learning_iteration_messages(self):
         logger.debug("Scheduling learning iteration for all connected clients")
-        with self.lock:
-            self.learning_in_progress = True
-            for client_stream_id in self.clients_queue.keys():
-                self.clients_queue[client_stream_id].put(
-                    fl_pb2.ScheduleRequest(
-                        program_id=self.program_id,
-                        user_id=self.nillion_server.user_id,
-                        batch_size=self.batch_size,
-                        num_parties=self.num_parties,
-                    )
+        self.learning_in_progress = True
+        for client_stream_id in self.clients_queue.keys():
+            self.clients_queue[client_stream_id].put(
+                fl_pb2.ScheduleRequest(
+                    program_id=self.program_id,
+                    user_id=self.nillion_server.user_id,
+                    batch_size=self.batch_size,
+                    num_parties=self.num_parties,
                 )
+            )
         logger.info("Scheduled learning iteration for all connected clients")
 
     def InitialState(self, stream_id, request):
@@ -99,41 +112,50 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             f"[SERVER][{uuid_str(stream_id)}] Received initial request: {request}"
         )
         if self.is_initial_request(request):
-            active_streams = 0
             with self.lock:
                 self.active_streams[stream_id] = request.token
-                active_streams = len(self.active_streams)
-
-            if active_streams == self.num_parties:
-                print(len(self.clients_queue), self.num_parties)
-                self.schedule_learning_iteration_messages()
+                if len(self.active_streams) == self.num_parties:
+                    print(len(self.clients_queue), self.num_parties)
+                    self.schedule_learning_iteration_messages()
         else:
             logger.warning(
                 f"[SERVER][{uuid_str(stream_id)}] Invalid initial request: {request}"
             )
 
     def LearningState(self, stream_id, request):
-        logger.info(
-            f"[SERVER][{uuid_str(stream_id)}] Received store ids: {request.store_ids}"
+        logger.debug(
+            f"[{uuid_str(stream_id)}] Received LearningState request: {request}"
         )
         with self.lock:
             if self.learning_in_progress:
                 if stream_id not in self.iteration_values:
                     self.iteration_values[stream_id] = request
+                    logger.debug(
+                        f"[{uuid_str(stream_id)}] LearningState: {len(self.iteration_values)}/{self.num_parties} values received"
+                    )
                 else:
                     raise ValueError("Received store ids before scheduling learning")
             else:
                 return ClientState.END
 
-        if len(self.iteration_values) == self.num_parties:
-            store_ids = []
-            with self.lock:
-                store_ids = [request.store_ids[0] for request in self.iteration_values.values()]
-            asyncio.run(self.nillion_server.compute(store_ids))
-            self.schedule_learning_iteration_messages()
-            # Signal that this client has completed its part
-            self.learning_complete.set()
-            self.iteration_values = {}
+            if len(self.iteration_values) == self.num_parties:
+                logger.debug(f"[{uuid_str(stream_id)}] Finished LearningState request")
+                store_ids = [
+                    request.store_ids[0] for request in self.iteration_values.values()
+                ]
+                # Ordered on client_id: party_id (that's why token is sent on each request).
+                party_ids = {
+                    self.clients[request.token]: request.party_id
+                    for request in self.iteration_values.values()
+                }
+                logger.debug(party_ids)
+                asyncio.run(self.nillion_server.compute(store_ids, party_ids))
+                self.schedule_learning_iteration_messages()
+                self.learning_complete.set()
+                self.iteration_values = {}
+        logger.debug(
+            f"[{uuid_str(stream_id)}] Finished LearningState request: {len(self.iteration_values)}/{self.num_parties} values received"
+        )
         return ClientState.READY
 
     def ScheduleLearningIteration(self, request_iterator, context):
@@ -146,7 +168,6 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
                 f"[SERVER][{uuid_str(stream_id)}] Handling client request thread started"
             )
             try:
-                print("A;,", request_iterator)
                 for request in request_iterator:
                     if not self.is_valid_token(request.token):
                         logger.warning(
@@ -166,7 +187,8 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             except grpc.RpcError as e:
                 logger.error(f"[SERVER][{uuid_str(stream_id)}] RPC Error: {e}")
             except Exception as e:
-                logger.error(f"[SERVER][{uuid_str(stream_id)}] Error: {e}")
+                error = traceback.format_exc()
+                logger.error(f"[SERVER][{uuid_str(stream_id)}] Error: {error}")
             finally:
                 logger.error(
                     f"[SERVER][{uuid_str(stream_id)}] Handling client request thread stopped"
@@ -218,8 +240,8 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
                 self.client_threads.pop(stream_id)
             if stream_id in self.clients_queue:
                 self.clients_queue.pop(stream_id)
-
-            logger.debug(f"[SERVER] {self} \n")
+            if stream_id in self.iteration_values:
+                self.iteration_values.pop(stream_id)
 
         logger.info(
             f"[SERVER][{uuid_str(stream_id)}] Client disconnected and cleaned up"
@@ -268,5 +290,9 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             server.stop(1)
 
 
-if __name__ == "__main__":
+def main():
     FederatedLearningServicer(num_parties=2).serve()
+
+
+if __name__ == "__main__":
+    main()

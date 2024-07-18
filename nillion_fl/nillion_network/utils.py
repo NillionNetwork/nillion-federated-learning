@@ -1,18 +1,17 @@
 """General utils functions"""
 
-import os
 import json
+import os
 import time
 from typing import Any, Callable, Dict, List
 
+import nada_numpy as na
+import nada_numpy.client as na_client
 import numpy as np
 import py_nillion_client as nillion
 from cosmpy.aerial.client import LedgerClient
 from cosmpy.aerial.wallet import LocalWallet
-from nillion_python_helpers import (get_quote, get_quote_and_pay, pay_with_quote)
-
-import nada_numpy as na
-import nada_numpy.client as na_client
+from nillion_python_helpers import get_quote, get_quote_and_pay, pay_with_quote
 
 
 def async_timer(file_path: os.PathLike) -> Callable:
@@ -264,12 +263,12 @@ async def compute(
 
 
 class JsonDict(dict):
-    
+
     @staticmethod
     def from_json(json_str: str) -> "JsonDict":
         """
         Create a JsonDict from a JSON string.
-        
+
         Args:
             json_str (str): JSON string.
 
@@ -277,7 +276,7 @@ class JsonDict(dict):
             JsonDict: JsonDict object.
         """
         return JsonDict(json.loads(json_str))
-    
+
     def to_json(self) -> str:
         """
         Convert JsonDict to a JSON string.
@@ -287,7 +286,7 @@ class JsonDict(dict):
         """
 
         return json.dumps(self)
-    
+
     @staticmethod
     def from_json_file(file_path: os.PathLike) -> "JsonDict":
         """
@@ -303,7 +302,7 @@ class JsonDict(dict):
 
         with open(file_path, "r") as file:
             return JsonDict(json.load(file))
-    
+
     def to_json_file(self, file_path: os.PathLike) -> None:
         """
         Write JsonDict to a JSON file.

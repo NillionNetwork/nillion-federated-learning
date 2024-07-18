@@ -31,3 +31,7 @@ grpcio-testing = "1.62.1"
 [tool.poetry.extras]
 examples = ["numpy", "pytorch", "torchvision"]
 dev = ["pytest", "pylint", "mypy", "grpcio-testing"]
+
+[tool.poetry.scripts]
+fl_client = 'nillion_fl.client:main'
+fl_server = 'nillion_fl.server:main'

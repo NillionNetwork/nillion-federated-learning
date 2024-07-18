@@ -2,35 +2,49 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset, random_split
 
-NUM_CLIENTS = 10
 
-
-class MyDataset(Dataset):
+class LogisticRegressionDataset(Dataset):
     def __init__(
         self,
         num_samples: int,
         num_features: int,
     ):
-        super(MyDataset, self).__init__()
+        super(LogisticRegressionDataset, self).__init__()
         np.random.seed(42)
 
-        self.values = np.random.rand(num_samples, num_features).astype(np.float32)
-        self.labels = self.values[:, 0].reshape(
-            num_samples, 1
-        )  # first feature is the label
+        # Generate random features
+        self.features = np.random.randn(num_samples, num_features).astype(np.float32)
+
+        # Generate labels based on a linear combination of features
+        weights = np.random.randn(num_features)
+        print(f"True weights: {weights}")
+        logits = np.dot(self.features, weights)
+        self.labels = 1 / (1 + np.exp(-logits))
+        # self.labels = (self.labels > 0.5).astype(np.float32)
+        self.labels = self.labels.reshape(-1, 1).astype(np.float32)
+
+        print(
+            f"Features shape: {self.features.shape} Labels shape: {self.labels.shape}"
+        )
 
     def __len__(self):
-        return len(self.values)  # number of samples in the dataset
+        return len(self.features)
 
     def __getitem__(self, index):
-        return self.values[index], self.labels[index]
+        return self.features[index], self.labels[index]
 
 
-def load_datasets(num_clients: int):
+def load_datasets(
+    num_clients: int,
+    batch_size: int = 32,
+    num_samples: int = 1000,
+    num_features: int = 10,
+):
+    dataset = LogisticRegressionDataset(
+        num_samples, num_features
+    )  # 1000 samples, 10 features
 
-    dataset = MyDataset(1000, 10)  # 1000 train samples, 10 features
-
-    # Split training set into `num_clients` partitions to simulate different local datasets
+    # Split dataset into `num_clients` partitions
     partition_size = len(dataset) // num_clients
     lengths = [partition_size] * num_clients
     datasets = random_split(dataset, lengths, torch.Generator().manual_seed(42))
@@ -39,11 +53,19 @@ def load_datasets(num_clients: int):
     trainloaders = []
     valloaders = []
     for ds in datasets:
-        len_val = len(ds) // 10  # 10 % validation set
+        len_val = len(ds) // 10  # 10% validation set
         len_train = len(ds) - len_val
         lengths = [len_train, len_val]
+        trainloader = None
+        valloader = None
         ds_train, ds_val = random_split(ds, lengths, torch.Generator().manual_seed(42))
-        trainloaders.append(DataLoader(ds_train, batch_size=32, shuffle=True))
-        valloaders.append(DataLoader(ds_val, batch_size=32))
+        if batch_size == 0:
+            trainloader = DataLoader(ds_train, shuffle=True)
+            valloader = DataLoader(ds_val)
+        else:
+            trainloader = DataLoader(ds_train, batch_size=batch_size, shuffle=True)
+            valloader = DataLoader(ds_val, batch_size=batch_size)
+        trainloaders.append(trainloader)
+        valloaders.append(valloader)
 
     return trainloaders, valloaders

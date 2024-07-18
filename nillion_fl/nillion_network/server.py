@@ -12,17 +12,14 @@ from cosmpy.aerial.client import LedgerClient
 from cosmpy.aerial.wallet import LocalWallet
 from cosmpy.crypto.keypairs import PrivateKey
 from dotenv import load_dotenv
-from nillion_fl.nillion_network.utils import store_program
-from nillion_fl.nillion_network.component import NillionNetworkComponent
-from nillion_fl.logs import logger
-from nillion_python_helpers import (
-    create_nillion_client,
-    create_payments_config,
-    get_quote,
-    get_quote_and_pay,
-    pay_with_quote,
-)
+from nillion_python_helpers import (create_nillion_client,
+                                    create_payments_config, get_quote,
+                                    get_quote_and_pay, pay_with_quote)
 from py_nillion_client import NodeKey, UserKey
+
+from nillion_fl.logs import logger
+from nillion_fl.nillion_network.component import NillionNetworkComponent
+from nillion_fl.nillion_network.utils import JsonDict, store_program
 
 home = os.getenv("HOME")
 # load_dotenv(f"{home}/.config/nillion/nillion-devnet.env")
@@ -32,10 +29,14 @@ MAX_SECRET_BATCH_SIZE = 5000
 
 class NillionNetworkServer(NillionNetworkComponent):
 
-    def __init__(self, program_name, num_parties, filename=f"{home}/.config/nillion/nillion-devnet.env"):
+    def __init__(
+        self,
+        program_name,
+        num_parties,
+        filename=f"{home}/.config/nillion/nillion-devnet.env",
+    ):
         super().__init__(9, num_parties, filename)
         self.program_name = program_name
-
 
     @staticmethod
     def create_config_py(directory, parameters):
@@ -45,9 +46,9 @@ class NillionNetworkServer(NillionNetworkComponent):
         :param directory: The directory where the config.py file will be created.
         :param parameters: A dictionary of parameters to include in the config.py file.
         """
-        config_path = os.path.join(directory, 'config.py')
-        
-        with open(config_path, 'w') as file:
+        config_path = os.path.join(directory, "config.py")
+
+        with open(config_path, "w") as file:
             for key, value in parameters.items():
                 file.write(f"{key} = {repr(value)}\n")
         print(f"config.py created in {directory}")
@@ -60,24 +61,30 @@ class NillionNetworkServer(NillionNetworkComponent):
         :param directory: The directory where the 'nada build' command will be executed.
         """
         try:
-            subprocess.run(['nada', 'build'], cwd=directory, check=True)
+            subprocess.run(["nada", "build"], cwd=directory, check=True)
             print("nada build executed successfully.")
         except subprocess.CalledProcessError as e:
             print(f"Error occurred while running 'nada build': {e}")
 
     def compile_program(self, batch_size, num_parties):
         # Compile the program
-        program_path = os.path.abspath(os.path.join(os.path.dirname(__file__), self.program_name))
+        program_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), self.program_name)
+        )
         config_file_path = os.path.join(program_path, "src/")
-        self.program_mir_path = os.path.join( program_path, f"target/{self.program_name}.nada.bin")
-        NillionNetworkServer.create_config_py(config_file_path, {"DIM": batch_size, "NUM_PARTIES": num_parties})
+        self.program_mir_path = os.path.join(
+            program_path, f"target/{self.program_name}.nada.bin"
+        )
+        NillionNetworkServer.create_config_py(
+            config_file_path, {"DIM": batch_size, "NUM_PARTIES": num_parties}
+        )
         NillionNetworkServer.execute_nada_build(program_path)
         logger.debug(f"Compiled program {self.program_name}")
         logger.debug(f"Program MIR path: {self.program_mir_path}")
         return self.program_mir_path
 
     async def store_program(self):
-        
+
         self.program_id = await store_program(
             self.client,
             self.payments_wallet,
@@ -89,30 +96,31 @@ class NillionNetworkServer(NillionNetworkComponent):
         )
         logger.info(f"Stored program {self.program_id}")
         return self.program_id
-    
+
     async def compute(self, secret_ids):
         pass
 
+
 class FedAvgNillionNetworkServer(NillionNetworkServer):
 
-    def __init__(self, num_parties, filename=f"{home}/.config/nillion/nillion-devnet.env"):
+    def __init__(
+        self, num_parties, filename=f"{home}/.config/nillion/nillion-devnet.env"
+    ):
         super().__init__("fed_avg", num_parties, filename)
 
-    
-    async def compute(self, secret_ids):
+    async def compute(self, store_ids, party_ids):
         # Bind the parties in the computation to the client to set input and output parties
         compute_bindings = nillion.ProgramBindings(self.program_id)
 
-        store_ids = []
-        for i, secret_id in enumerate(secret_ids):
-            compute_bindings.add_input_party(self.party_names[i], secret_id)
-            compute_bindings.add_output_party(self.party_names[i], secret_id)
+        for client_id, user_id in party_ids.items():  # tuple (client_id(0..n), user_id)
+            compute_bindings.add_input_party(self.party_names[client_id], user_id)
+            compute_bindings.add_output_party(self.party_names[client_id], user_id)
 
         # Create a computation time secret to use
         computation_time_secrets = nillion.NadaValues({})
 
         # Get cost quote, then pay for operation to compute
-        receipt_compute = get_quote_and_pay(
+        receipt_compute = await get_quote_and_pay(
             self.client,
             nillion.Operation.compute(self.program_id, computation_time_secrets),
             self.payments_wallet,
@@ -130,3 +138,47 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
         )
 
         return uuid
+
+
+async def main(client_ids):
+    num_parties = len(client_ids)
+    # FedAvgNillionNetworkServer instance
+    nillion_server = FedAvgNillionNetworkServer(num_parties)
+    nillion_server.compile_program(1000, num_parties)
+    program_id = await nillion_server.store_program()
+
+    JsonDict(
+        {"program_id": program_id, "server_user_id": nillion_server.user_id}
+    ).to_json_file("/tmp/fed_avg.json")
+
+    input("Press ENTER to continue to compute ...")
+    store_ids = []
+    party_ids = {}
+    for i, client_id in enumerate(client_ids):
+        config = JsonDict.from_json_file(f"/tmp/client_{client_id}.json")
+        store_ids.append(config["store_id"])
+        party_ids[client_id] = config["party_id"]
+
+    print("Using store_ids: ", store_ids)
+    print("Using party_ids: ", party_ids)
+
+    # Compute
+
+    uuid = await nillion_server.compute(store_ids, party_ids)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run the client program with a client ID",
+        epilog="Example: python server.py 1",
+    )
+    parser.add_argument(
+        "client_ids",
+        type=int,
+        nargs="+",
+        help="A list of integers as client arguments (at least 2)",
+    )
+
+    args = parser.parse_args()
+
+    asyncio.run(main(args.client_ids))

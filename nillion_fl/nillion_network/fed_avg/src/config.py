@@ -1,2 +1,2 @@
-DIM = 2500
+DIM = 10
 NUM_PARTIES = 2

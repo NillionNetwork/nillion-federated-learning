@@ -1,5 +1,8 @@
 """Main Nada program"""
 
+import functools
+import inspect
+import time
 from typing import List
 
 # Step 0: Nada Numpy is imported with this line
@@ -7,9 +10,6 @@ import nada_numpy as na
 from nada_dsl import Integer, Output, SecretInteger
 
 from nillion_fl.nillion_network.fed_avg.src.config import DIM, NUM_PARTIES
-import inspect
-import functools
-import time
 
 
 def nada_main() -> List[Output]:
@@ -32,7 +32,7 @@ def nada_main() -> List[Output]:
     for array in input_arrays[1:]:
         result += array
 
-    #result = result / Integer(NUM_PARTIES)
+    # result = result / Integer(NUM_PARTIES)
 
     # Result is output to all parties
     outputs = []

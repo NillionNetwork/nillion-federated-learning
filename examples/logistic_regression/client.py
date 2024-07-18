@@ -5,13 +5,13 @@ import torch
 from torch import nn, optim
 
 from examples.logistic_regression.dataset import load_datasets
-from examples.logistic_regression.model import Net
+from examples.logistic_regression.model import LogisticRegression as Net
 from nillion_fl.client import FederatedLearningClient
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"Training on {DEVICE} using PyTorch {torch.__version__}")
 
-torch.manual_seed(42)
+# torch.manual_seed(42)
 
 
 class NillionFLClient(FederatedLearningClient):
@@ -68,6 +68,8 @@ class NillionFLClient(FederatedLearningClient):
         epochs = self.config["epochs"]
 
         for epoch in range(epochs):
+            self.net.train()
+            total_loss = 0
             for batch_inputs, batch_labels in self.trainloader:
                 # Zero the parameter gradients
                 self.optimizer.zero_grad()
@@ -80,7 +82,10 @@ class NillionFLClient(FederatedLearningClient):
                 loss.backward()
                 self.optimizer.step()
 
-            print(f"Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.4f}")
+                total_loss += loss.item()
+
+            avg_loss = total_loss / len(self.trainloader)
+            print(f"Epoch [{epoch+1}/{epochs}], Loss: {avg_loss:.4f}")
 
     def fit(self, parameters=None):
         if parameters is not None:
@@ -90,13 +95,18 @@ class NillionFLClient(FederatedLearningClient):
 
 
 def run():
-
+    NUM_PARAMETERS = 10
     NUM_CLIENTS = 2
-    trainloaders, valloaders = load_datasets(NUM_CLIENTS)
-    net = Net()
+    input_dim = 10  # Number of features in our dataset
+    net = Net(input_dim)
+
+    # Generate data
+    trainloaders, valloaders = load_datasets(
+        1, batch_size=0, num_features=input_dim
+    )  # We're using only one client for this example
 
     client = NillionFLClient(
-        net, trainloaders[0], valloaders[0], {"epochs": 5, "learning_rate": 0.001}
+        net, trainloaders[0], valloaders[0], {"epochs": 1, "learning_rate": 0.001}
     )
     client.start_client()
 
