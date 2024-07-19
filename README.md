@@ -1,6 +1,33 @@
-# To generate GRPCs:
+# Nillion Federated Learning
 
+This repository contains the PoC for running Federated Learning on top of Nillion. It consists of two pieces of code, a Server and a Client. 
+
+
+## Setup
+
+```bash
+poetry install -E examples
 ```
-poetry install
-poetry run python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. nillion_fl/fl_net/fl_service.proto
+
+On a separate terminal:
+
+```bash
+# Terminal 0
+nillion-devnet
+```
+
+```bash
+# Terminal 1
+poetry run lr_server
+```
+
+
+```bash
+# Terminal 2
+poetry run lr_client 0
+```
+
+```bash
+# Terminal 3
+poetry run lr_client 1
 ```
