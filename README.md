@@ -6,6 +6,7 @@ This repository contains the PoC for running Federated Learning on top of Nillio
 ## Setup
 
 ```bash
+pip install poetry
 poetry install -E examples
 ```
 
