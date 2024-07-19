@@ -51,7 +51,7 @@ class NillionNetworkServer(NillionNetworkComponent):
         with open(config_path, "w") as file:
             for key, value in parameters.items():
                 file.write(f"{key} = {repr(value)}\n")
-        print(f"config.py created in {directory}")
+        logger.debug(f"config.py created in {directory}")
 
     @staticmethod
     def execute_nada_build(directory):
@@ -62,9 +62,9 @@ class NillionNetworkServer(NillionNetworkComponent):
         """
         try:
             subprocess.run(["nada", "build"], cwd=directory, check=True)
-            print("nada build executed successfully.")
+            logger.debug("nada build executed successfully.")
         except subprocess.CalledProcessError as e:
-            print(f"Error occurred while running 'nada build': {e}")
+            logger.error(f"Error occurred while running 'nada build': {e}")
 
     def compile_program(self, batch_size, num_parties):
         # Compile the program
@@ -94,7 +94,7 @@ class NillionNetworkServer(NillionNetworkComponent):
             self.program_name,
             self.program_mir_path,
         )
-        logger.info(f"Stored program {self.program_id}")
+        logger.debug(f"Stored program {self.program_id}")
         return self.program_id
 
     async def compute(self, secret_ids):
@@ -159,8 +159,8 @@ async def main(client_ids):
         store_ids.append(config["store_id"])
         party_ids[client_id] = config["party_id"]
 
-    print("Using store_ids: ", store_ids)
-    print("Using party_ids: ", party_ids)
+    logger.debug("Using store_ids: ", store_ids)
+    logger.debug("Using party_ids: ", party_ids)
 
     # Compute
 

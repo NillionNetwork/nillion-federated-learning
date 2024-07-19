@@ -24,7 +24,7 @@ class FederatedLearningClient:
     def register_client(self):
         request = fl_pb2.RegisterRequest()
         self.client_info = self.stub.RegisterClient(request)
-        logger.info(
+        logger.debug(
             f"""
             Registered with client_id: {self.client_info.client_id}, 
             token: {uuid_str(self.client_info.token)}, 
@@ -37,7 +37,7 @@ class FederatedLearningClient:
 
     def schedule_learning_iteration(self):
         def client_request_sender():
-            logger.info("[CLIENT] Sending initial message")
+            logger.debug("[CLIENT] Sending initial message")
             yield fl_pb2.StoreIDs(
                 store_ids=[], party_id="", token=self.client_info.token
             )  # Empty first message
@@ -45,23 +45,23 @@ class FederatedLearningClient:
             while True:
                 if len(self.responses) > 0:
                     response = self.responses.pop(0)
-                    logger.info("[CLIENT] Sending store id response")
+                    logger.debug("[CLIENT] Sending store id response")
                     yield response
                     time.sleep(0.5)
 
-            logger.info("[CLIENT][SEND] STOP")
+            logger.debug("[CLIENT][SEND] STOP")
 
         learning_requests = self.stub.ScheduleLearningIteration(client_request_sender())
 
         for learning_request in learning_requests:
-            logger.info("[CLIENT] Received learning request")
+            logger.debug("[CLIENT] Received learning request")
             if learning_request.program_id == "-1":
                 logger.warning("Received STOP training request")
                 learning_requests.cancel()
                 self.channel.close()
                 break
 
-            logger.info(f"Learning Request: {learning_request}")
+            logger.debug(f"Learning Request: {learning_request}")
 
             self.learning_iteration(learning_request)
 
@@ -86,7 +86,7 @@ class FederatedLearningClient:
         )
 
         self.parameters = asyncio.run(self.nillion_client.get_compute_result())
-        logger.debug(f"New Parameters: {self.parameters}")
+        logger.info(f"New Parameters: {self.parameters}")
 
     def fit(self, parameters):
         logger.debug("Fitting...")
@@ -104,7 +104,7 @@ class FederatedLearningClient:
         if remainder > 0:
             parameters = np.pad(parameters, (0, batch_size - remainder))
 
-        print(f"Paramters: {divmod(len(parameters), batch_size)}")
+        logger.debug(f"Paramters: {divmod(len(parameters), batch_size)}")
         for i in range(0, len(parameters), batch_size):
             batch = parameters[i : i + batch_size]
             secret_name = chr(ord("A") + self.client_info.client_id)
@@ -124,7 +124,7 @@ class FederatedLearningClient:
             self.register_client()  # Creates the client_id and token
             self.schedule_learning_iteration()
         except KeyboardInterrupt:
-            logger.info("Client stopping...")
+            logger.warning("Client stopping...")
 
 
 def main():

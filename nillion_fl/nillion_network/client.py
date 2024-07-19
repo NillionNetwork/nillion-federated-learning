@@ -69,8 +69,10 @@ class NillionNetworkClient(NillionNetworkComponent):
         while True:
             compute_event = await self.client.next_compute_event()
             if isinstance(compute_event, nillion.ComputeFinishedEvent):
-                print(f"✅  Compute complete for compute_id {compute_event.uuid}")
-                print(f"🖥️  The result is {compute_event.result.value}")
+                logger.debug(
+                    f"✅  Compute complete for compute_id {compute_event.uuid}"
+                )
+                logger.debug(f"🖥️  The result is {compute_event.result.value}")
                 return compute_event.result.value
 
     async def get_compute_result(self):

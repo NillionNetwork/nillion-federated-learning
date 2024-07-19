@@ -1,3 +1,4 @@
+import argparse
 from collections import OrderedDict
 
 import numpy as np
@@ -7,9 +8,10 @@ from torch import nn, optim
 from examples.logistic_regression.dataset import load_datasets
 from examples.logistic_regression.model import LogisticRegression as Net
 from nillion_fl.client import FederatedLearningClient
+from nillion_fl.logs import logger
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-print(f"Training on {DEVICE} using PyTorch {torch.__version__}")
+logger.debug(f"Training on {DEVICE} using PyTorch {torch.__version__}")
 
 # torch.manual_seed(42)
 
@@ -85,16 +87,42 @@ class NillionFLClient(FederatedLearningClient):
                 total_loss += loss.item()
 
             avg_loss = total_loss / len(self.trainloader)
-            print(f"Epoch [{epoch+1}/{epochs}], Loss: {avg_loss:.4f}")
+            logger.warning(f"Epoch [{epoch+1}/{epochs}], Loss: {avg_loss:.4f}")
 
     def fit(self, parameters=None):
         if parameters is not None:
             self.set_parameters(parameters)
         self.train()
+        self.local_evaluate()
         return self.get_parameters()
 
+    def local_evaluate(self):
+        """
+        Evaluates the network on the validation dataset and returns the accuracy.
 
-def run():
+        Returns:
+            float: The accuracy of the network on the validation dataset.
+        """
+        import time
+
+        self.net.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for inputs, labels in self.valloader:
+                predicted = self.net(inputs)
+                labels = (labels > 0.5).float()
+                predicted = (predicted > 0.5).float()
+                total += predicted.size(0)
+                correct += (predicted == labels).sum().item()
+
+        accuracy = 100 * correct / total
+        logger.warning(f"Validation Accuracy: {accuracy:.2f}%")
+        time.sleep(2)
+        return accuracy
+
+
+def run(client_id):
     NUM_PARAMETERS = 10
     NUM_CLIENTS = 2
     input_dim = 10  # Number of features in our dataset
@@ -102,14 +130,31 @@ def run():
 
     # Generate data
     trainloaders, valloaders = load_datasets(
-        1, batch_size=0, num_features=input_dim
+        NUM_CLIENTS, batch_size=0, num_features=input_dim
     )  # We're using only one client for this example
 
     client = NillionFLClient(
-        net, trainloaders[0], valloaders[0], {"epochs": 1, "learning_rate": 0.001}
+        net,
+        trainloaders[client_id],
+        valloaders[client_id],
+        {"epochs": 1, "learning_rate": 0.001},
     )
     client.start_client()
 
 
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run the client program with a client ID",
+        epilog="Example: python client.py 1",
+    )
+    parser.add_argument(
+        "client_id",
+        type=int,
+        help="The client ID number (a value from 0 to 9 representing the client_id)",
+    )
+    args = parser.parse_args()
+    run(args.client_id)
+
+
 if __name__ == "__main__":
-    run()
+    main()

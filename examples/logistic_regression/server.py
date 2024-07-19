@@ -1,4 +1,8 @@
 from nillion_fl.server import FederatedLearningServicer
 
-if __name__ == "__main__":
+
+def main():
     FederatedLearningServicer(num_parties=2).serve()
+
+if __name__ == "__main__":
+    main

@@ -35,3 +35,5 @@ dev = ["pytest", "pylint", "mypy", "grpcio-testing"]
 [tool.poetry.scripts]
 fl_client = 'nillion_fl.client:main'
 fl_server = 'nillion_fl.server:main'
+lr_client = 'examples.logistic_regression.client:main'
+lr_server = 'examples.logistic_regression.server:main'

@@ -2,6 +2,8 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset, random_split
 
+from nillion_fl.logs import logger
+
 
 class LogisticRegressionDataset(Dataset):
     def __init__(
@@ -17,15 +19,11 @@ class LogisticRegressionDataset(Dataset):
 
         # Generate labels based on a linear combination of features
         weights = np.random.randn(num_features)
-        print(f"True weights: {weights}")
+        logger.info(f"True weights: {weights}")
         logits = np.dot(self.features, weights)
         self.labels = 1 / (1 + np.exp(-logits))
         # self.labels = (self.labels > 0.5).astype(np.float32)
         self.labels = self.labels.reshape(-1, 1).astype(np.float32)
-
-        print(
-            f"Features shape: {self.features.shape} Labels shape: {self.labels.shape}"
-        )
 
     def __len__(self):
         return len(self.features)

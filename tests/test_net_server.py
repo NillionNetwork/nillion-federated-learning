@@ -25,9 +25,6 @@ class TestFederatedLearningServicer(unittest.TestCase):
         )
 
     def test_register_client(self):
-        print("." * 100)
-        print("Testing test_register_client")
-        print("." * 100)
         request = fl_pb2.RegisterRequest()
         method = self.test_server.invoke_unary_unary(
             fl_pb2.DESCRIPTOR.services_by_name[
@@ -43,9 +40,6 @@ class TestFederatedLearningServicer(unittest.TestCase):
         self.assertNotEqual(response.token, "")
 
     def test_register_client_max_reached(self):
-        print("." * 100)
-        print("Testing test_register_client_max_reached")
-        print("." * 100)
         # Register two clients (max number)
         for _ in range(2):
             request = fl_pb2.RegisterRequest()
@@ -74,9 +68,6 @@ class TestFederatedLearningServicer(unittest.TestCase):
         self.assertEqual(response.token, "")
 
     def test_schedule_learning(self):
-        print("." * 100)
-        print("Testing test_schedule_learning")
-        print("." * 100)
         tokens = []
         for _ in range(2):
             request = fl_pb2.RegisterRequest()

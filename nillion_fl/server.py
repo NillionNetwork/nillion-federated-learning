@@ -86,7 +86,7 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             client_id = len(self.clients)
             token = str(uuid.uuid4())
             self.clients[token] = client_id
-            logger.info(
+            logger.debug(
                 f"[SERVER] Registering client [{client_id}] with token: {uuid_str(token)}"
             )
             return fl_pb2.ClientInfo(
@@ -105,24 +105,23 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
                     num_parties=self.num_parties,
                 )
             )
-        logger.info("Scheduled learning iteration for all connected clients")
+        logger.debug("Scheduled learning iteration for all connected clients")
 
     def InitialState(self, stream_id, request):
-        logger.info(
-            f"[SERVER][{uuid_str(stream_id)}] Received initial request: {request}"
-        )
+        logger.info(f"[{uuid_str(stream_id)}] Received InitialState")
+        logger.debug(f"[{uuid_str(stream_id)}] Received initial request: {request}")
         if self.is_initial_request(request):
             with self.lock:
                 self.active_streams[stream_id] = request.token
                 if len(self.active_streams) == self.num_parties:
-                    print(len(self.clients_queue), self.num_parties)
                     self.schedule_learning_iteration_messages()
         else:
             logger.warning(
-                f"[SERVER][{uuid_str(stream_id)}] Invalid initial request: {request}"
+                f"[{uuid_str(stream_id)}] Invalid initial request: {request}"
             )
 
     def LearningState(self, stream_id, request):
+        logger.info(f"[{uuid_str(stream_id)}] Received StoreIDs")
         logger.debug(
             f"[{uuid_str(stream_id)}] Received LearningState request: {request}"
         )
@@ -130,6 +129,7 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             if self.learning_in_progress:
                 if stream_id not in self.iteration_values:
                     self.iteration_values[stream_id] = request
+                    logger.info(f"[{uuid_str(stream_id)}] Triggering Aggregation")
                     logger.debug(
                         f"[{uuid_str(stream_id)}] LearningState: {len(self.iteration_values)}/{self.num_parties} values received"
                     )
@@ -164,7 +164,7 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
 
         def client_request_handler():
             client_state = ClientState.INITIAL
-            logger.info(
+            logger.debug(
                 f"[SERVER][{uuid_str(stream_id)}] Handling client request thread started"
             )
             try:
@@ -195,7 +195,7 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
                 )
                 self.handle_client_disconnect(stream_id)
 
-        logger.info(
+        logger.debug(
             f"[SERVER][{uuid_str(stream_id)}] Starting client request handler thread"
         )
         self.client_threads[stream_id] = threading.Thread(
@@ -203,12 +203,12 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         )
         self.client_threads[stream_id].start()
 
-        logger.info(f"[SERVER][{uuid_str(stream_id)}] Starting server loop")
+        logger.debug(f"[SERVER][{uuid_str(stream_id)}] Starting server loop")
         try:
             while stream_id in self.clients_queue:
                 if not self.clients_queue[stream_id].empty():
                     message = self.clients_queue[stream_id].get(timeout=5)
-                    logger.info(
+                    logger.debug(
                         f"[SERVER][{uuid_str(stream_id)}] Sending message: {message}"
                     )
                     yield message
@@ -243,14 +243,14 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             if stream_id in self.iteration_values:
                 self.iteration_values.pop(stream_id)
 
-        logger.info(
+        logger.debug(
             f"[SERVER][{uuid_str(stream_id)}] Client disconnected and cleaned up"
         )
         # If a client disconnects during learning, end the learning for all clients
         self.end_learning_for_all_clients()
 
     def end_learning_for_all_clients(self):
-        logger.info("Ending learning iteration for all connected clients")
+        logger.debug("Ending learning iteration for all connected clients")
         with self.lock:
             self.learning_in_progress = False
             for client_stream_id in self.clients_queue.keys():
@@ -263,7 +263,7 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
                     )
                 )
         self.learning_complete.set()
-        logger.info("Ended learning iteration for all connected clients")
+        logger.debug("Ended learning iteration for all connected clients")
 
     def stop(self):
         threads = []
@@ -279,14 +279,14 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         server.add_insecure_port("[::]:50051")
 
         server.start()
-        logger.info("Server started. Listening on port 50051.")
+        logger.debug("Server started. Listening on port 50051.")
         try:
             while True:
                 time.sleep(86400)
         except KeyboardInterrupt:
-            logger.info("Server stopping...")
+            logger.debug("Server stopping...")
             self.stop()
-            logger.info("All client threads stopped")
+            logger.debug("All client threads stopped")
             server.stop(1)
 
 
