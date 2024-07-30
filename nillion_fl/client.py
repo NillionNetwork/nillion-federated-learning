@@ -10,9 +10,20 @@ import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
 from nillion_fl.logs import logger, uuid_str
 from nillion_fl.nillion_network.client import NillionNetworkClient
 
-
 class FederatedLearningClient:
+    """
+    A client class for participating in federated learning.
+    """
+
     def __init__(self, net, trainloader, valloader):
+        """
+        Initialize the FederatedLearningClient.
+
+        Args:
+            net: The neural network model.
+            trainloader: Data loader for training data.
+            valloader: Data loader for validation data.
+        """
         self.net = net
         self.trainloader = trainloader
         self.valloader = valloader
@@ -22,6 +33,9 @@ class FederatedLearningClient:
         self.parameters = None
 
     def register_client(self):
+        """
+        Register the client with the federated learning server.
+        """
         request = fl_pb2.RegisterRequest()
         self.client_info = self.stub.RegisterClient(request)
         logger.debug(
@@ -36,7 +50,16 @@ class FederatedLearningClient:
         )
 
     def schedule_learning_iteration(self):
+        """
+        Schedule and manage learning iterations with the server.
+
+        Returns:
+            None
+        """
         def client_request_sender():
+            """
+            Generator function to send client requests to the server.
+            """
             logger.debug("[CLIENT] Sending initial message")
             yield fl_pb2.StoreIDs(
                 store_ids=[], party_id="", token=self.client_info.token
@@ -51,6 +74,7 @@ class FederatedLearningClient:
 
             logger.debug("[CLIENT][SEND] STOP")
 
+        # Start the learning iteration process
         learning_requests = self.stub.ScheduleLearningIteration(client_request_sender())
 
         for learning_request in learning_requests:
@@ -68,7 +92,16 @@ class FederatedLearningClient:
         return None
 
     def learning_iteration(self, learning_request):
+        """
+        Perform a single learning iteration.
+
+        Args:
+            learning_request: The learning request from the server.
+        """
+        # Fit the model and get updated parameters
         parameters = self.fit(self.parameters)
+        
+        # Store the updated parameters as secrets
         store_ids = self.store_secrets(
             parameters,
             learning_request.program_id,
@@ -77,6 +110,7 @@ class FederatedLearningClient:
             learning_request.num_parties,
         )
 
+        # Prepare the response with store IDs
         self.responses.append(
             fl_pb2.StoreIDs(
                 store_ids=store_ids,
@@ -85,10 +119,20 @@ class FederatedLearningClient:
             )
         )
 
+        # Get the computed result from the Nillion Network
         self.parameters = asyncio.run(self.nillion_client.get_compute_result())
         logger.info(f"New Parameters: {self.parameters}")
 
     def fit(self, parameters):
+        """
+        Fit the model using the current parameters.
+
+        Args:
+            parameters: Current model parameters.
+
+        Returns:
+            numpy.ndarray: Updated model parameters.
+        """
         logger.debug("Fitting...")
         # Dummy parameters and function
         if parameters is None:
@@ -97,14 +141,26 @@ class FederatedLearningClient:
             return parameters + 0.5
 
     def store_secrets(self, parameters, program_id, user_id, batch_size, num_parties):
+        """
+        Store the parameters as secrets in the Nillion Network.
 
+        Args:
+            parameters (numpy.ndarray): Model parameters to store.
+            program_id (str): ID of the program.
+            user_id (str): ID of the user.
+            batch_size (int): Size of each batch.
+            num_parties (int): Number of participating parties.
+
+        Returns:
+            list: List of store IDs for the stored secrets.
+        """
         # Create a batch of maximum batch size of the parameters vector
         store_ids = []
         remainder = len(parameters) % batch_size
         if remainder > 0:
             parameters = np.pad(parameters, (0, batch_size - remainder))
 
-        logger.debug(f"Paramters: {divmod(len(parameters), batch_size)}")
+        logger.debug(f"Parameters: {divmod(len(parameters), batch_size)}")
         for i in range(0, len(parameters), batch_size):
             batch = parameters[i : i + batch_size]
             secret_name = chr(ord("A") + self.client_info.client_id)
@@ -117,7 +173,15 @@ class FederatedLearningClient:
         return store_ids
 
     def start_client(self, host="localhost", port=50051):
+        """
+        Start the federated learning client.
+
+        Args:
+            host (str): Server host address. Default is "localhost".
+            port (int): Server port number. Default is 50051.
+        """
         try:
+            # Establish a gRPC channel and create a stub
             self.channel = grpc.insecure_channel(f"{host}:{port}")
             self.stub = fl_pb2_grpc.FederatedLearningServiceStub(self.channel)
             self.client_info = None
@@ -126,11 +190,12 @@ class FederatedLearningClient:
         except KeyboardInterrupt:
             logger.warning("Client stopping...")
 
-
 def main():
+    """
+    Main function to create and start a FederatedLearningClient.
+    """
     client = FederatedLearningClient(None, None, None)
     client.start_client()
-
 
 if __name__ == "__main__":
     main()

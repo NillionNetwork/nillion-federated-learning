@@ -459,7 +459,7 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-LOGGER_LEVEL = logging.INFO
+LOGGER_LEVEL = logging.DEBUG
 # create logger with 'spam_application'
 logger = logging.getLogger(__name__)
 logger.setLevel(LOGGER_LEVEL)

@@ -16,58 +16,91 @@ from nillion_fl.logs import logger, uuid_str
 from nillion_fl.nillion_network.server import (MAX_SECRET_BATCH_SIZE,
                                                FedAvgNillionNetworkServer)
 
-
+# Enum to represent the state of a client
 class ClientState(Enum):
     INITIAL = 0
     READY = 1
     END = 2
 
-
 class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
+    """
+    A servicer class for handling federated learning operations.
+    """
 
     def __init__(self, num_parties):
-        # The total number of parties
+        """
+        Initialize the FederatedLearningServicer.
+
+        Args:
+            num_parties (int): The total number of parties participating in federated learning.
+        """
         self.num_parties = num_parties
-        # The batch size for each party
         self.batch_size = int(MAX_SECRET_BATCH_SIZE / self.num_parties)
-        self.batch_size = 10
+        self.batch_size = 10  # Override the calculated batch size
 
-        # A dictionary mapping a token to a client_id
-        self.clients = {}
-        # A dictionary mapping a stream id to a token
-        self.active_streams = {}
-        # A dictionary mapping a stream id to a thread
-        self.client_threads = {}
-        # A dictionary mapping a stream id to a list of messages to be sent to the specific client
-        self.clients_queue = {}
-        # A dictionary mapping the current iteration of received values.
-        self.iteration_values = {}
+        # Dictionaries to manage client information and state
+        self.clients = {}  # token -> client_id
+        self.active_streams = {}  # stream_id -> token
+        self.client_threads = {}  # stream_id -> thread
+        self.clients_queue = {}  # stream_id -> Queue of messages
+        self.iteration_values = {}  # stream_id -> received values for current iteration
 
-        # Lock to ensure thread safety
+        # Thread synchronization
         self.lock = threading.Lock()
-        # Flag to indicate if learning is in progress
         self.learning_in_progress = False
-        # Event to signal the completion of learning for all clients
         self.learning_complete = threading.Event()
 
-        # FedAvgNillionNetworkServer instance
+        # Initialize the Nillion Network server
         self.nillion_server = FedAvgNillionNetworkServer(num_parties)
         self.nillion_server.compile_program(self.batch_size, self.num_parties)
         self.program_id = asyncio.run(self.nillion_server.store_program())
 
     def __del__(self):
+        """
+        Destructor to ensure all clients end learning when the servicer is destroyed.
+        """
         self.end_learning_for_all_clients()
 
     def __str__(self):
+        """
+        Return a string representation of the FederatedLearningServicer.
+
+        Returns:
+            str: A string containing the servicer's current state.
+        """
         return f"FederatedLearningServicer(\n num_parties={self.num_parties},\n clients={self.clients},\n active_streams={self.active_streams},\n client_threads={self.client_threads},\n clients_queue={self.clients_queue}, \n iteration_values={self.iteration_values},\n learning_in_progress={self.learning_in_progress}\n)"
 
     def __repr__(self):
+        """
+        Return a string representation of the FederatedLearningServicer.
+
+        Returns:
+            str: Same as __str__ method.
+        """
         return self.__str__()
 
     def is_valid_token(self, token):
+        """
+        Check if a given token is valid.
+
+        Args:
+            token (str): The token to validate.
+
+        Returns:
+            bool: True if the token is valid, False otherwise.
+        """
         return token in self.clients
 
     def is_initial_request(self, request):
+        """
+        Check if a request is an initial request.
+
+        Args:
+            request: The request to check.
+
+        Returns:
+            bool: True if it's an initial request, False otherwise.
+        """
         return (
             len(request.store_ids) == 0
             and request.party_id == ""
@@ -75,6 +108,16 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         )
 
     def RegisterClient(self, request, context):
+        """
+        Register a new client.
+
+        Args:
+            request: The registration request.
+            context: The gRPC context.
+
+        Returns:
+            fl_pb2.ClientInfo: Client information including client_id, token, and num_parties.
+        """
         with self.lock:
             if len(self.clients) >= self.num_parties:
                 context.set_code(grpc.StatusCode.RESOURCE_EXHAUSTED)
@@ -94,6 +137,9 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             )
 
     def schedule_learning_iteration_messages(self):
+        """
+        Schedule learning iteration messages for all connected clients.
+        """
         logger.debug("Scheduling learning iteration for all connected clients")
         self.learning_in_progress = True
         for client_stream_id in self.clients_queue.keys():
@@ -108,6 +154,13 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         logger.debug("Scheduled learning iteration for all connected clients")
 
     def InitialState(self, stream_id, request):
+        """
+        Handle the initial state of a client connection.
+
+        Args:
+            stream_id (str): The unique identifier for the client stream.
+            request: The initial request from the client.
+        """
         logger.info(f"[{uuid_str(stream_id)}] Received InitialState")
         logger.debug(f"[{uuid_str(stream_id)}] Received initial request: {request}")
         if self.is_initial_request(request):
@@ -121,6 +174,16 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             )
 
     def LearningState(self, stream_id, request):
+        """
+        Handle the learning state of a client connection.
+
+        Args:
+            stream_id (str): The unique identifier for the client stream.
+            request: The learning state request from the client.
+
+        Returns:
+            ClientState: The next state of the client.
+        """
         logger.info(f"[{uuid_str(stream_id)}] Received StoreIDs")
         logger.debug(
             f"[{uuid_str(stream_id)}] Received LearningState request: {request}"
@@ -159,9 +222,21 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         return ClientState.READY
 
     def ScheduleLearningIteration(self, request_iterator, context):
+        """
+        Schedule and manage learning iterations for a client.
+
+        Args:
+            request_iterator: An iterator of client requests.
+            context: The gRPC context.
+
+        Yields:
+            Messages to be sent to the client.
+        """
+        # Create a unique stream id for each client
         stream_id = str(uuid.uuid4())
         self.clients_queue[stream_id] = Queue()
 
+        # Define the client request handler function
         def client_request_handler():
             client_state = ClientState.INITIAL
             logger.debug(
@@ -198,14 +273,20 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         logger.debug(
             f"[SERVER][{uuid_str(stream_id)}] Starting client request handler thread"
         )
+        
+        # Start the client request handler thread
         self.client_threads[stream_id] = threading.Thread(
             target=client_request_handler, daemon=True
         )
         self.client_threads[stream_id].start()
 
+        # Server management routine
         logger.debug(f"[SERVER][{uuid_str(stream_id)}] Starting server loop")
+        
+        # Main server loop to answer requests from the client
         try:
             while stream_id in self.clients_queue:
+                # If there are messages to send to the client, yield them
                 if not self.clients_queue[stream_id].empty():
                     message = self.clients_queue[stream_id].get(timeout=5)
                     logger.debug(
@@ -232,6 +313,12 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             self.handle_client_disconnect(stream_id)
 
     def handle_client_disconnect(self, stream_id):
+        """
+        Handle client disconnection and clean up resources.
+
+        Args:
+            stream_id (str): The unique identifier for the client stream.
+        """
         with self.lock:
             if stream_id in self.active_streams:
                 token = self.active_streams.pop(stream_id)
@@ -250,6 +337,9 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         self.end_learning_for_all_clients()
 
     def end_learning_for_all_clients(self):
+        """
+        End the learning process for all connected clients.
+        """
         logger.debug("Ending learning iteration for all connected clients")
         with self.lock:
             self.learning_in_progress = False
@@ -266,6 +356,9 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         logger.debug("Ended learning iteration for all connected clients")
 
     def stop(self):
+        """
+        Stop all client threads and end the learning process.
+        """
         threads = []
         with self.lock:
             self.learning_in_progress = False
@@ -274,6 +367,9 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             thread.join()
 
     def serve(self):
+        """
+        Start the gRPC server and listen for client connections.
+        """
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         fl_pb2_grpc.add_FederatedLearningServiceServicer_to_server(self, server)
         server.add_insecure_port("[::]:50051")
@@ -289,10 +385,11 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             logger.debug("All client threads stopped")
             server.stop(1)
 
-
 def main():
+    """
+    Main function to start the Federated Learning Server.
+    """
     FederatedLearningServicer(num_parties=2).serve()
-
 
 if __name__ == "__main__":
     main()
