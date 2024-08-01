@@ -16,27 +16,31 @@ from nillion_fl.logs import logger, uuid_str
 from nillion_fl.nillion_network.server import (MAX_SECRET_BATCH_SIZE,
                                                FedAvgNillionNetworkServer)
 
+
 # Enum to represent the state of a client
 class ClientState(Enum):
     INITIAL = 0
     READY = 1
     END = 2
 
+
 class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
     """
     A servicer class for handling federated learning operations.
     """
 
-    def __init__(self, num_parties):
+    def __init__(self, num_parties, program_number=10):
         """
         Initialize the FederatedLearningServicer.
 
         Args:
             num_parties (int): The total number of parties participating in federated learning.
+            program_batch (int): The num size for the Nillion program.
         """
         self.num_parties = num_parties
         self.batch_size = int(MAX_SECRET_BATCH_SIZE / self.num_parties)
         self.batch_size = 10  # Override the calculated batch size
+        self.program_number = program_number  # The number of the program to be executed in the Nillion Network
 
         # Dictionaries to manage client information and state
         self.clients = {}  # token -> client_id
@@ -51,7 +55,7 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         self.learning_complete = threading.Event()
 
         # Initialize the Nillion Network server
-        self.nillion_server = FedAvgNillionNetworkServer(num_parties)
+        self.nillion_server = FedAvgNillionNetworkServer(num_parties, program_batch)
         self.nillion_server.compile_program(self.batch_size, self.num_parties)
         self.program_id = asyncio.run(self.nillion_server.store_program())
 
@@ -273,7 +277,7 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
         logger.debug(
             f"[SERVER][{uuid_str(stream_id)}] Starting client request handler thread"
         )
-        
+
         # Start the client request handler thread
         self.client_threads[stream_id] = threading.Thread(
             target=client_request_handler, daemon=True
@@ -282,7 +286,7 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
 
         # Server management routine
         logger.debug(f"[SERVER][{uuid_str(stream_id)}] Starting server loop")
-        
+
         # Main server loop to answer requests from the client
         try:
             while stream_id in self.clients_queue:
@@ -385,11 +389,13 @@ class FederatedLearningServicer(fl_pb2_grpc.FederatedLearningServiceServicer):
             logger.debug("All client threads stopped")
             server.stop(1)
 
+
 def main():
     """
     Main function to start the Federated Learning Server.
     """
     FederatedLearningServicer(num_parties=2).serve()
+
 
 if __name__ == "__main__":
     main()

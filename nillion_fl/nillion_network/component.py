@@ -41,7 +41,7 @@ class NillionNetworkComponent(object):
         self.party_id = self.client.party_id
         self.user_id = self.client.user_id
 
-        self.party_names = na_client.parties(num_parties)
+        self.party_names = na_client.parties(num_parties + 1) # The +1 party is the program coordinator
 
         # Create payments config and set up Nillion wallet with a private key to pay for operations
         self.payments_config = create_payments_config(self.chain_id, self.grpc_endpoint)

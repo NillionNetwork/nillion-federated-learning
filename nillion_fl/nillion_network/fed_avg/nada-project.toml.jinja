@@ -6,7 +6,8 @@ authors = [""]
 path = "src/fed_avg.py"
 prime_size = 128
 
-
+{% for line in programs%}
 [[programs]]
-path = "src/custom_fed_avg.py"
+path = "src/{{line}}"
 prime_size = 128
+{% endfor %}

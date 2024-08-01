@@ -12,6 +12,7 @@ from cosmpy.aerial.client import LedgerClient
 from cosmpy.aerial.wallet import LocalWallet
 from cosmpy.crypto.keypairs import PrivateKey
 from dotenv import load_dotenv
+from jinja2 import Environment, FileSystemLoader
 from nillion_python_helpers import (create_nillion_client,
                                     create_payments_config, get_quote,
                                     get_quote_and_pay, pay_with_quote)
@@ -22,8 +23,7 @@ from nillion_fl.nillion_network.component import NillionNetworkComponent
 from nillion_fl.nillion_network.utils import JsonDict, store_program
 
 home = os.getenv("HOME")
-# load_dotenv(f"{home}/.config/nillion/nillion-devnet.env")
-# load_dotenv(f"/workspaces/ai/.nillion-testnet.env")
+
 MAX_SECRET_BATCH_SIZE = 5000
 
 
@@ -31,54 +31,106 @@ class NillionNetworkServer(NillionNetworkComponent):
 
     def __init__(
         self,
-        program_name,
-        num_parties,
-        filename=f"{home}/.config/nillion/nillion-devnet.env",
+        program_name: str,
+        num_parties: int,
+        num_threads: int = 1,
+        filename: str = f"{home}/.config/nillion/nillion-devnet.env",
     ):
         super().__init__(9, num_parties, filename)
         self.program_name = program_name
+        self.num_threads = num_threads
+
+    def create_src_file(self, src_directory, batch_size):
+        """
+        Creates the source files for the Nada program in the specified directory based on the Jinja templates.
+
+        Args:
+            directory: The directory where the source files will be created.
+            parameters: A dictionary of parameters to include in the source files.
+        """
+        #template_path = os.path.join(src_directory, f"{self.program_name}.py.jinja")
+
+        # Set up the Jinja2 environment
+        env = Environment(loader=FileSystemLoader(src_directory))
+
+        # Load the template
+        src_template = env.get_template(f"{self.program_name}.py.jinja")
+
+        # Define your data
+        data = {
+            "num_parties": self.num_parties,
+            "dim": batch_size,
+        }
+
+        # Render the template
+        output = src_template.render(data)
+        src_file_name = f"custom_{self.program_name}"
+        src_file_path = os.path.join(src_directory, f"{src_file_name}.py")
+
+        # Write to a Python file
+        with open(src_file_path, "w") as f:
+            f.write(output)
+        
+        return src_file_path, src_file_name
+
+    def update_toml_file(self, program_directory: os.PathLike, src_file_name: str):
+        """
+        Creates a TOML file for the Nada program in the specified directory.
+
+        :param program_directory: The directory where the TOML file will be created.
+        :param src_file_name: The name of the source file.
+        """
+        # Set up the Jinja2 environment
+        env = Environment(loader=FileSystemLoader(program_directory))
+
+        # Load the template
+        toml_template = env.get_template("nada-project.toml.jinja")
+
+        if not src_file_name.endswith(".py"):
+            src_file_name += ".py"
+
+        # Define your data
+        data = {
+            "programs": [src_file_name],
+        }
+
+        # Render the template
+        output = toml_template.render(data)
+        toml_file_path = os.path.join(program_directory, "nada-project.toml")
+
+        # Write to a TOML file
+        with open(toml_file_path, "w") as f:
+            f.write(output)
 
     @staticmethod
-    def create_config_py(directory, parameters):
-        """
-        Creates a config.py file in the specified directory with given parameters.
-
-        :param directory: The directory where the config.py file will be created.
-        :param parameters: A dictionary of parameters to include in the config.py file.
-        """
-        config_path = os.path.join(directory, "config.py")
-
-        with open(config_path, "w") as file:
-            for key, value in parameters.items():
-                file.write(f"{key} = {repr(value)}\n")
-        logger.debug(f"config.py created in {directory}")
-
-    @staticmethod
-    def execute_nada_build(directory):
+    def execute_nada_build(directory, filename: str=None):
         """
         Executes the 'nada build' command in the specified directory.
 
         :param directory: The directory where the 'nada build' command will be executed.
         """
         try:
-            subprocess.run(["nada", "build"], cwd=directory, check=True)
+            cmd = ["nada", "build"]
+            if filename is not None:
+                cmd.append(filename)
+            subprocess.run(cmd, cwd=directory, check=True)
             logger.debug("nada build executed successfully.")
         except subprocess.CalledProcessError as e:
             logger.error(f"Error occurred while running 'nada build': {e}")
 
-    def compile_program(self, batch_size, num_parties):
+    def compile_program(self, batch_size):
         # Compile the program
-        program_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), self.program_name)
-        )
-        config_file_path = os.path.join(program_path, "src/")
-        self.program_mir_path = os.path.join(
-            program_path, f"target/{self.program_name}.nada.bin"
-        )
-        NillionNetworkServer.create_config_py(
-            config_file_path, {"DIM": batch_size, "NUM_PARTIES": num_parties}
-        )
-        NillionNetworkServer.execute_nada_build(program_path)
+        self.batch_size = batch_size
+
+        program_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), f"{self.program_name}/"))
+        src_path = os.path.join(program_directory, "src/")
+
+        src_file_path, src_file_name = self.create_src_file(src_path, batch_size)
+
+        self.program_mir_path = os.path.join(program_directory, f"target/{src_file_name}.nada.bin")
+
+        self.update_toml_file(program_directory, src_file_name)
+        NillionNetworkServer.execute_nada_build(program_directory, src_file_name)
         logger.debug(f"Compiled program {self.program_name}")
         logger.debug(f"Program MIR path: {self.program_mir_path}")
         return self.program_mir_path
@@ -104,20 +156,23 @@ class NillionNetworkServer(NillionNetworkComponent):
 class FedAvgNillionNetworkServer(NillionNetworkServer):
 
     def __init__(
-        self, num_parties, filename=f"{home}/.config/nillion/nillion-devnet.env"
+        self, num_parties: int, num_threads: int = 1, filename: str=f"{home}/.config/nillion/nillion-devnet.env"
     ):
-        super().__init__("fed_avg", num_parties, filename)
+        super().__init__("fed_avg", num_parties, num_threads, filename)
 
-    async def compute(self, store_ids, party_ids):
+    async def compute(self, store_ids: list, party_ids: dict, program_order: int):
         # Bind the parties in the computation to the client to set input and output parties
         compute_bindings = nillion.ProgramBindings(self.program_id)
 
+        compute_bindings.add_input_party(self.party_names[-1], self.user_id)
         for client_id, user_id in party_ids.items():  # tuple (client_id(0..n), user_id)
             compute_bindings.add_input_party(self.party_names[client_id], user_id)
             compute_bindings.add_output_party(self.party_names[client_id], user_id)
 
         # Create a computation time secret to use
-        computation_time_secrets = nillion.NadaValues({})
+        computation_time_secrets = nillion.NadaValues(
+            {"program_order": nillion.Integer(program_order)}
+        )
 
         # Get cost quote, then pay for operation to compute
         receipt_compute = await get_quote_and_pay(
@@ -140,17 +195,21 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
         return uuid
 
 
-async def main(client_ids):
+async def main(batch_size, client_ids):
     num_parties = len(client_ids)
+    num_threads = 5
     # FedAvgNillionNetworkServer instance
-    nillion_server = FedAvgNillionNetworkServer(num_parties)
-    nillion_server.compile_program(1000, num_parties)
+    nillion_server = FedAvgNillionNetworkServer(num_parties, num_threads=num_threads)
+    nillion_server.compile_program(batch_size)
     program_id = await nillion_server.store_program()
 
     JsonDict(
         {"program_id": program_id, "server_user_id": nillion_server.user_id}
     ).to_json_file("/tmp/fed_avg.json")
 
+    print("Now users can proceed to run the client program with the following client IDs: ")
+    for client_id in client_ids:
+        print(f"\t poetry run python3 client.py {batch_size} {num_parties} {client_id} {chr(ord('A') + client_id)}")
     input("Press ENTER to continue to compute ...")
     store_ids = []
     party_ids = {}
@@ -159,18 +218,23 @@ async def main(client_ids):
         store_ids.append(config["store_id"])
         party_ids[client_id] = config["party_id"]
 
-    logger.debug("Using store_ids: ", store_ids)
-    logger.debug("Using party_ids: ", party_ids)
+    logger.debug(f"Using store_ids: {store_ids}")
+    logger.debug(f"Using party_ids: {party_ids}")
 
     # Compute
 
-    uuid = await nillion_server.compute(store_ids, party_ids)
+    uuid = await nillion_server.compute(store_ids, party_ids, program_order=1234567890)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run the client program with a client ID",
         epilog="Example: python server.py 1",
+    )
+    parser.add_argument(
+        "batch_size",
+        type=int,
+        help="An integer as client argument (max. 1000)",
     )
     parser.add_argument(
         "client_ids",
@@ -181,4 +245,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    asyncio.run(main(args.client_ids))
+    asyncio.run(main(args.batch_size, args.client_ids))

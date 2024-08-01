@@ -10,6 +10,7 @@ import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
 from nillion_fl.logs import logger, uuid_str
 from nillion_fl.nillion_network.client import NillionNetworkClient
 
+
 class FederatedLearningClient:
     """
     A client class for participating in federated learning.
@@ -56,6 +57,7 @@ class FederatedLearningClient:
         Returns:
             None
         """
+
         def client_request_sender():
             """
             Generator function to send client requests to the server.
@@ -100,7 +102,7 @@ class FederatedLearningClient:
         """
         # Fit the model and get updated parameters
         parameters = self.fit(self.parameters)
-        
+
         # Store the updated parameters as secrets
         store_ids = self.store_secrets(
             parameters,
@@ -190,12 +192,14 @@ class FederatedLearningClient:
         except KeyboardInterrupt:
             logger.warning("Client stopping...")
 
+
 def main():
     """
     Main function to create and start a FederatedLearningClient.
     """
     client = FederatedLearningClient(None, None, None)
     client.start_client()
+
 
 if __name__ == "__main__":
     main()

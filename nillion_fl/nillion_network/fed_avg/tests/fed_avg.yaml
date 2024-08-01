@@ -1,0 +1,68 @@
+---
+program: fed_avg
+inputs:
+  B_9:
+    SecretInteger: "3"
+  B_4:
+    SecretInteger: "3"
+  B_2:
+    SecretInteger: "3"
+  B_5:
+    SecretInteger: "3"
+  A_1:
+    SecretInteger: "3"
+  A_8:
+    SecretInteger: "3"
+  B_1:
+    SecretInteger: "3"
+  A_0:
+    SecretInteger: "3"
+  A_4:
+    SecretInteger: "3"
+  A_7:
+    SecretInteger: "3"
+  B_6:
+    SecretInteger: "3"
+  B_8:
+    SecretInteger: "3"
+  A_2:
+    SecretInteger: "3"
+  A_3:
+    SecretInteger: "3"
+  A_9:
+    SecretInteger: "3"
+  program_order:
+    Integer: "125"
+  A_5:
+    SecretInteger: "3"
+  A_6:
+    SecretInteger: "3"
+  B_0:
+    SecretInteger: "3"
+  B_3:
+    SecretInteger: "3"
+  B_7:
+    SecretInteger: "3"
+expected_outputs:
+  my_output_2:
+    SecretInteger: "6"
+  my_output_8:
+    SecretInteger: "6"
+  my_output_5:
+    SecretInteger: "6"
+  program_order:
+    Integer: "125"
+  my_output_0:
+    SecretInteger: "6"
+  my_output_4:
+    SecretInteger: "6"
+  my_output_1:
+    SecretInteger: "6"
+  my_output_3:
+    SecretInteger: "6"
+  my_output_6:
+    SecretInteger: "6"
+  my_output_7:
+    SecretInteger: "6"
+  my_output_9:
+    SecretInteger: "6"

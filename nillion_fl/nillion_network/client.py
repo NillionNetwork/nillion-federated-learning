@@ -77,45 +77,64 @@ class NillionNetworkClient(NillionNetworkComponent):
 
     async def get_compute_result(self):
         result = await self.get_compute_result_from_nillion()
-        batch_size = len(result)
+        batch_size = len(result) - 1
         result_array = np.zeros((batch_size,))
         for i in range(batch_size):
             result_array[i] = na_client.float_from_rational(
                 result[f"my_output_{i}"]
             )  # Format specific for fed_avg
+        logger.debug("\n"
+                    f"📊  Result array: {result_array}"
+                    f"\n📊  Program order: {result['program_order']}"  )
+        return result_array / self.num_parties, result["program_order"]
 
-        return result_array / self.num_parties
 
-
-async def main(num_parties, client_id, secret_name):
+async def main(batch_size, num_parties, client_id, secret_name, num_threads):
     program_config = JsonDict.from_json_file("/tmp/fed_avg.json")
     program_id = program_config["program_id"]
     server_user_id = program_config["server_user_id"]
 
     nillion_client = NillionNetworkClient(client_id, num_parties)
 
+    store_ids = [nillion_client.store_array(
+            np.ones((batch_size,)), secret_name, program_id, server_user_id
+        ) for _ in range(num_threads)]
+    
+    store_ids = [await store_id for store_id in store_ids]
+
     store_id = await nillion_client.store_array(
-        np.ones((1000,)), secret_name, program_id, server_user_id
+        np.ones((batch_size,)), secret_name, program_id, server_user_id
     )
 
     JsonDict({"store_id": store_id, "party_id": nillion_client.party_id}).to_json_file(
         f"/tmp/client_{client_id}.json"
     )
 
-    result = await nillion_client.get_compute_result()
-    return result
+    result, order = await nillion_client.get_compute_result()
+    return result, order
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run the client program with a client ID",
-        epilog="Example: python client.py 1",
+        epilog="Example: python client.py 10 ",
     )
+    parser.add_argument(
+        "batch_size",
+        type=int,
+        help="The number of secrets in the computation",
+    )
+    # parser.add_argument(
+    #     "num_threads",
+    #     type=int,
+    #     help="The number of concurrent computations",
+    # )
     parser.add_argument(
         "num_parties",
         type=int,
         help="The number of parties in the computation",
     )
+
     parser.add_argument(
         "client_id",
         type=int,
@@ -128,4 +147,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    asyncio.run(main(args.num_parties, args.client_id, args.secret_name))
+    asyncio.run(main(args.batch_size, args.num_parties, args.client_id, args.secret_name, args.num_threads))

@@ -1,4 +1,4 @@
-"""This is an example file to showcase how the resulting output would look like"""
+"""Main Nada program"""
 
 import functools
 import inspect
@@ -10,7 +10,7 @@ import nada_numpy as na
 from nada_dsl import *
 
 NUM_PARTIES = 2
-DIM = 1000
+DIM = 10
 
 def nada_main() -> List[Output]:
     """
