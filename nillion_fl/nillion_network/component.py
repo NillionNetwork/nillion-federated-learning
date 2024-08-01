@@ -9,8 +9,7 @@ from cosmpy.aerial.client import LedgerClient
 from cosmpy.aerial.wallet import LocalWallet
 from cosmpy.crypto.keypairs import PrivateKey
 from dotenv import load_dotenv
-from nillion_python_helpers import (create_nillion_client,
-                                    create_payments_config)
+from nillion_python_helpers import create_nillion_client, create_payments_config
 from py_nillion_client import NodeKey, UserKey
 
 from nillion_fl.nillion_network.utils import store_secret_array
@@ -41,7 +40,9 @@ class NillionNetworkComponent(object):
         self.party_id = self.client.party_id
         self.user_id = self.client.user_id
 
-        self.party_names = na_client.parties(num_parties + 1) # The +1 party is the program coordinator
+        self.party_names = na_client.parties(
+            num_parties + 1
+        )  # The +1 party is the program coordinator
 
         # Create payments config and set up Nillion wallet with a private key to pay for operations
         self.payments_config = create_payments_config(self.chain_id, self.grpc_endpoint)

@@ -11,8 +11,7 @@ from cosmpy.aerial.client import LedgerClient
 from cosmpy.aerial.wallet import LocalWallet
 from cosmpy.crypto.keypairs import PrivateKey
 from dotenv import load_dotenv
-from nillion_python_helpers import (create_nillion_client,
-                                    create_payments_config)
+from nillion_python_helpers import create_nillion_client, create_payments_config
 from py_nillion_client import NodeKey, UserKey
 
 from nillion_fl.logs import logger
@@ -30,9 +29,11 @@ class NillionNetworkClient(NillionNetworkComponent):
         self,
         client_id,
         num_parties,
+        num_threads,
         filename=f"{home}/.config/nillion/nillion-devnet.env",
     ):
         super().__init__(client_id, num_parties, filename)
+        self.num_threads = num_threads
 
     async def store_array(self, array, secret_name, program_id, server_user_id):
         """
@@ -64,29 +65,48 @@ class NillionNetworkClient(NillionNetworkComponent):
 
         return store_id
 
-    async def get_compute_result_from_nillion(self):
+    async def store_arrays(self, arrays, secret_name, program_id, server_user_id):
+        store_ids = [
+            self.store_array(array, secret_name, program_id, server_user_id)
+            for array in arrays
+        ]
+        return await asyncio.gather(*store_ids)
+
+    async def get_compute_results_from_nillion(self):
+        compute_results = []
         logger.info("⌛ Waiting for result...")
-        while True:
+        while len(compute_results) < self.num_threads:
+            logger.debug(
+                f"🔍  Current compute results: {len(compute_results)} / {self.num_threads}"
+            )
             compute_event = await self.client.next_compute_event()
             if isinstance(compute_event, nillion.ComputeFinishedEvent):
                 logger.debug(
                     f"✅  Compute complete for compute_id {compute_event.uuid}"
                 )
                 logger.debug(f"🖥️  The result is {compute_event.result.value}")
-                return compute_event.result.value
+                compute_results.append(compute_event.result.value)
+        return compute_results
 
     async def get_compute_result(self):
-        result = await self.get_compute_result_from_nillion()
-        batch_size = len(result) - 1
-        result_array = np.zeros((batch_size,))
-        for i in range(batch_size):
-            result_array[i] = na_client.float_from_rational(
-                result[f"my_output_{i}"]
-            )  # Format specific for fed_avg
-        logger.debug("\n"
-                    f"📊  Result array: {result_array}"
-                    f"\n📊  Program order: {result['program_order']}"  )
-        return result_array / self.num_parties, result["program_order"]
+        results = await self.get_compute_results_from_nillion()
+        output_tuples = []
+        for result in results:
+            batch_size = len(result) - 1
+            result_array = np.zeros((batch_size,))
+            for i in range(batch_size):
+                result_array[i] = na_client.float_from_rational(
+                    result[f"my_output_{i}"]
+                )  # Format specific for fed_avg
+            logger.debug(
+                "\n"
+                f"📊  Result array: {result_array}"
+                f"\n📊  Program order: {result['program_order']}"
+            )
+            output_tuples.append(
+                (result["program_order"], result_array / self.num_parties)
+            )
+        return output_tuples
 
 
 async def main(batch_size, num_parties, client_id, secret_name, num_threads):
@@ -94,41 +114,38 @@ async def main(batch_size, num_parties, client_id, secret_name, num_threads):
     program_id = program_config["program_id"]
     server_user_id = program_config["server_user_id"]
 
-    nillion_client = NillionNetworkClient(client_id, num_parties)
+    nillion_client = NillionNetworkClient(client_id, num_parties, num_threads)
 
-    store_ids = [nillion_client.store_array(
-            np.ones((batch_size,)), secret_name, program_id, server_user_id
-        ) for _ in range(num_threads)]
-    
-    store_ids = [await store_id for store_id in store_ids]
-
-    store_id = await nillion_client.store_array(
-        np.ones((batch_size,)), secret_name, program_id, server_user_id
+    store_ids = await nillion_client.store_arrays(
+        [np.ones(batch_size) * i for i in range(1, num_threads + 1)],
+        secret_name,
+        program_id,
+        server_user_id,
     )
 
-    JsonDict({"store_id": store_id, "party_id": nillion_client.party_id}).to_json_file(
+    JsonDict({"store_id": store_ids, "party_id": nillion_client.party_id}).to_json_file(
         f"/tmp/client_{client_id}.json"
     )
 
-    result, order = await nillion_client.get_compute_result()
-    return result, order
+    results = await nillion_client.get_compute_result()
+    return results
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run the client program with a client ID",
-        epilog="Example: python client.py 10 ",
+        epilog="Example: python client.py 10 5 2 0 'A'",
     )
     parser.add_argument(
         "batch_size",
         type=int,
         help="The number of secrets in the computation",
     )
-    # parser.add_argument(
-    #     "num_threads",
-    #     type=int,
-    #     help="The number of concurrent computations",
-    # )
+    parser.add_argument(
+        "num_threads",
+        type=int,
+        help="The number of concurrent computations",
+    )
     parser.add_argument(
         "num_parties",
         type=int,
@@ -147,4 +164,12 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    asyncio.run(main(args.batch_size, args.num_parties, args.client_id, args.secret_name, args.num_threads))
+    asyncio.run(
+        main(
+            args.batch_size,
+            args.num_parties,
+            args.client_id,
+            args.secret_name,
+            args.num_threads,
+        )
+    )

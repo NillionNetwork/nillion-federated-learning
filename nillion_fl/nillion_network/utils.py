@@ -13,6 +13,7 @@ from cosmpy.aerial.client import LedgerClient
 from cosmpy.aerial.wallet import LocalWallet
 from nillion_python_helpers import get_quote, get_quote_and_pay, pay_with_quote
 
+from nillion_fl.logs import logger
 
 def async_timer(file_path: os.PathLike) -> Callable:
     """
@@ -96,8 +97,8 @@ async def store_program(
 
     program_id = f"{user_id}/{program_name}"
     if verbose:
-        print("Stored program. action_id:", action_id)
-        print("Stored program_id:", program_id)
+        logger.debug("Stored program. action_id:", action_id)
+        logger.debug("Stored program_id:", program_id)
     return program_id
 
 
@@ -257,8 +258,8 @@ async def compute(
         compute_event = await client.next_compute_event()
         if isinstance(compute_event, nillion.ComputeFinishedEvent):
             if verbose:
-                print(f"✅  Compute complete for compute_id {compute_event.uuid}")
-                print(f"🖥️  The result is {compute_event.result.value}")
+                logger.debug(f"✅  Compute complete for compute_id {compute_event.uuid}")
+                logger.debug(f"🖥️  The result is {compute_event.result.value}")
             return compute_event.result.value
 
 
@@ -298,7 +299,7 @@ class JsonDict(dict):
         Returns:
             JsonDict: JsonDict object.
         """
-        print(f"Loading JsonDict from file: {file_path}")
+        logger.debug(f"Loading JsonDict from file: {file_path}")
 
         with open(file_path, "r") as file:
             return JsonDict(json.load(file))
@@ -310,6 +311,6 @@ class JsonDict(dict):
         Args:
             file_path (os.PathLike): File path.
         """
-        print(f"Storing JsonDict to file: {file_path}")
+        logger.debug(f"Storing JsonDict to file: {file_path}")
         with open(file_path, "w") as file:
             json.dump(self, file)

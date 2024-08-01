@@ -13,9 +13,13 @@ from cosmpy.aerial.wallet import LocalWallet
 from cosmpy.crypto.keypairs import PrivateKey
 from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
-from nillion_python_helpers import (create_nillion_client,
-                                    create_payments_config, get_quote,
-                                    get_quote_and_pay, pay_with_quote)
+from nillion_python_helpers import (
+    create_nillion_client,
+    create_payments_config,
+    get_quote,
+    get_quote_and_pay,
+    pay_with_quote,
+)
 from py_nillion_client import NodeKey, UserKey
 
 from nillion_fl.logs import logger
@@ -48,7 +52,7 @@ class NillionNetworkServer(NillionNetworkComponent):
             directory: The directory where the source files will be created.
             parameters: A dictionary of parameters to include in the source files.
         """
-        #template_path = os.path.join(src_directory, f"{self.program_name}.py.jinja")
+        # template_path = os.path.join(src_directory, f"{self.program_name}.py.jinja")
 
         # Set up the Jinja2 environment
         env = Environment(loader=FileSystemLoader(src_directory))
@@ -70,7 +74,7 @@ class NillionNetworkServer(NillionNetworkComponent):
         # Write to a Python file
         with open(src_file_path, "w") as f:
             f.write(output)
-        
+
         return src_file_path, src_file_name
 
     def update_toml_file(self, program_directory: os.PathLike, src_file_name: str):
@@ -103,7 +107,7 @@ class NillionNetworkServer(NillionNetworkComponent):
             f.write(output)
 
     @staticmethod
-    def execute_nada_build(directory, filename: str=None):
+    def execute_nada_build(directory, filename: str = None):
         """
         Executes the 'nada build' command in the specified directory.
 
@@ -122,12 +126,16 @@ class NillionNetworkServer(NillionNetworkComponent):
         # Compile the program
         self.batch_size = batch_size
 
-        program_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), f"{self.program_name}/"))
+        program_directory = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), f"{self.program_name}/")
+        )
         src_path = os.path.join(program_directory, "src/")
 
         src_file_path, src_file_name = self.create_src_file(src_path, batch_size)
 
-        self.program_mir_path = os.path.join(program_directory, f"target/{src_file_name}.nada.bin")
+        self.program_mir_path = os.path.join(
+            program_directory, f"target/{src_file_name}.nada.bin"
+        )
 
         self.update_toml_file(program_directory, src_file_name)
         NillionNetworkServer.execute_nada_build(program_directory, src_file_name)
@@ -156,11 +164,16 @@ class NillionNetworkServer(NillionNetworkComponent):
 class FedAvgNillionNetworkServer(NillionNetworkServer):
 
     def __init__(
-        self, num_parties: int, num_threads: int = 1, filename: str=f"{home}/.config/nillion/nillion-devnet.env"
+        self,
+        num_parties: int,
+        num_threads: int = 1,
+        filename: str = f"{home}/.config/nillion/nillion-devnet.env",
     ):
         super().__init__("fed_avg", num_parties, num_threads, filename)
 
-    async def compute(self, store_ids: list, party_ids: dict, program_order: int):
+    async def compute(
+        self, num_threads: int, store_ids: list, party_ids: dict, program_order: int
+    ):
         # Bind the parties in the computation to the client to set input and output parties
         compute_bindings = nillion.ProgramBindings(self.program_id)
 
@@ -169,35 +182,43 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
             compute_bindings.add_input_party(self.party_names[client_id], user_id)
             compute_bindings.add_output_party(self.party_names[client_id], user_id)
 
-        # Create a computation time secret to use
-        computation_time_secrets = nillion.NadaValues(
-            {"program_order": nillion.Integer(program_order)}
-        )
+        compute_futures = []
+        for thread in range(num_threads):
 
-        # Get cost quote, then pay for operation to compute
-        receipt_compute = await get_quote_and_pay(
-            self.client,
-            nillion.Operation.compute(self.program_id, computation_time_secrets),
-            self.payments_wallet,
-            self.payments_client,
-            self.cluster_id,
-        )
+            thread_store_ids = [
+                party_store_ids[thread] for party_store_ids in store_ids
+            ]
+            # Create a computation time secret to use
+            computation_time_secrets = nillion.NadaValues(
+                {"program_order": nillion.Integer(thread)}
+            )
 
-        # Compute, passing all params including the receipt that shows proof of payment
-        uuid = await self.client.compute(
-            self.cluster_id,
-            compute_bindings,
-            store_ids,
-            computation_time_secrets,
-            receipt_compute,
-        )
+            # Get cost quote, then pay for operation to compute
+            receipt_compute = await get_quote_and_pay(
+                self.client,
+                nillion.Operation.compute(self.program_id, computation_time_secrets),
+                self.payments_wallet,
+                self.payments_client,
+                self.cluster_id,
+            )
 
-        return uuid
+            # Compute, passing all params including the receipt that shows proof of payment
+            compute_future = self.client.compute(
+                self.cluster_id,
+                compute_bindings,
+                thread_store_ids,
+                computation_time_secrets,
+                receipt_compute,
+            )
+
+            compute_futures.append(compute_future)
+
+        uuids = await asyncio.gather(*compute_futures)
+        return uuids
 
 
-async def main(batch_size, client_ids):
+async def main(batch_size, num_threads, client_ids):
     num_parties = len(client_ids)
-    num_threads = 5
     # FedAvgNillionNetworkServer instance
     nillion_server = FedAvgNillionNetworkServer(num_parties, num_threads=num_threads)
     nillion_server.compile_program(batch_size)
@@ -207,9 +228,13 @@ async def main(batch_size, client_ids):
         {"program_id": program_id, "server_user_id": nillion_server.user_id}
     ).to_json_file("/tmp/fed_avg.json")
 
-    print("Now users can proceed to run the client program with the following client IDs: ")
+    print(
+        "Now users can proceed to run the client program with the following client IDs: "
+    )
     for client_id in client_ids:
-        print(f"\t poetry run python3 client.py {batch_size} {num_parties} {client_id} {chr(ord('A') + client_id)}")
+        print(
+            f"\t poetry run python3 client.py {batch_size} {num_threads} {num_parties} {client_id} {chr(ord('A') + client_id)}"
+        )
     input("Press ENTER to continue to compute ...")
     store_ids = []
     party_ids = {}
@@ -223,18 +248,26 @@ async def main(batch_size, client_ids):
 
     # Compute
 
-    uuid = await nillion_server.compute(store_ids, party_ids, program_order=1234567890)
+    uuids = await nillion_server.compute(
+        num_threads, store_ids, party_ids, program_order=1234567890
+    )
+    logger.debug(f"Compute complete with UUIDs: {uuids}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run the client program with a client ID",
-        epilog="Example: python server.py 1",
+        epilog="Example: python server.py 10 5 [0 1 2]",
     )
     parser.add_argument(
         "batch_size",
         type=int,
         help="An integer as client argument (max. 1000)",
+    )
+    parser.add_argument(
+        "num_threads",
+        type=int,
+        help="The number of concurrent computations",
     )
     parser.add_argument(
         "client_ids",
@@ -245,4 +278,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    asyncio.run(main(args.batch_size, args.client_ids))
+    asyncio.run(main(args.batch_size, args.num_threads, args.client_ids))
