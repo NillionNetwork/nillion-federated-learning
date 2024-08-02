@@ -11,9 +11,9 @@ import numpy as np
 import py_nillion_client as nillion
 from cosmpy.aerial.client import LedgerClient
 from cosmpy.aerial.wallet import LocalWallet
+from nillion_fl.logs import logger
 from nillion_python_helpers import get_quote, get_quote_and_pay, pay_with_quote
 
-from nillion_fl.logs import logger
 
 def async_timer(file_path: os.PathLike) -> Callable:
     """
@@ -154,6 +154,54 @@ async def store_secret_array(
     return store_id
 
 
+async def store_secret_array(
+    client: nillion.NillionClient,
+    payments_wallet: LocalWallet,
+    payments_client: LedgerClient,
+    cluster_id: str,
+    program_id: str,
+    secret_array: np.ndarray,
+    secret_name: str,
+    nada_type: Any,
+    ttl_days: int = 1,
+    permissions: nillion.Permissions = None,
+):
+    """
+    Asynchronous function to store secret arrays on the nillion client.
+
+    Args:
+        client (nillion.NillionClient): Nillion client.
+        cluster_id (str): Cluster ID.
+        program_id (str): Program ID.
+        party_id (str): Party ID.
+        party_name (str): Party name.
+        secret_array (np.ndarray): Secret array.
+        name (str): Secrets name.
+        nada_type (Any): Nada type.
+        permissions (nillion.Permissions): Optional Permissions.
+
+
+    Returns:
+        str: Store ID.
+    """
+
+    # Create a secret
+    stored_secret = nillion.NadaValues(
+        na_client.array(secret_array, secret_name, nada_type)
+    )
+
+    # Get cost quote, then pay for operation to store the secret
+    receipt_store = await get_quote_and_pay(
+        client,
+        nillion.Operation.store_values(stored_secret, ttl_days=ttl_days),
+        payments_wallet,
+        payments_client,
+        cluster_id,
+    )
+
+    return receipt_store
+
+
 async def store_secret_value(
     client: nillion.NillionClient,
     payments_wallet: LocalWallet,
@@ -258,7 +306,9 @@ async def compute(
         compute_event = await client.next_compute_event()
         if isinstance(compute_event, nillion.ComputeFinishedEvent):
             if verbose:
-                logger.debug(f"✅  Compute complete for compute_id {compute_event.uuid}")
+                logger.debug(
+                    f"✅  Compute complete for compute_id {compute_event.uuid}"
+                )
                 logger.debug(f"🖥️  The result is {compute_event.result.value}")
             return compute_event.result.value
 
