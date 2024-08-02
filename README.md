@@ -32,3 +32,6 @@ poetry run lr_client 0
 # Terminal 3
 poetry run lr_client 1
 ```
+
+# Regenerating gRPC
+

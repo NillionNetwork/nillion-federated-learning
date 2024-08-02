@@ -11,8 +11,9 @@ import numpy as np
 import py_nillion_client as nillion
 from cosmpy.aerial.client import LedgerClient
 from cosmpy.aerial.wallet import LocalWallet
-from nillion_fl.logs import logger
 from nillion_python_helpers import get_quote, get_quote_and_pay, pay_with_quote
+
+from nillion_fl.logs import logger
 
 
 def async_timer(file_path: os.PathLike) -> Callable:
