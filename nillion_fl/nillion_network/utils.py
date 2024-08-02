@@ -97,8 +97,8 @@ async def store_program(
 
     program_id = f"{user_id}/{program_name}"
     if verbose:
-        logger.debug("Stored program. action_id:", action_id)
-        logger.debug("Stored program_id:", program_id)
+        logger.debug(f"Stored program. action_id: {action_id}")
+        logger.debug(f"Stored program_id: {program_id}")
     return program_id
 
 

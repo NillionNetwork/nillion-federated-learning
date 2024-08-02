@@ -10,8 +10,7 @@ import nada_numpy as na
 from nada_dsl import *
 
 NUM_PARTIES = 2
-DIM = 3000
-
+DIM = 1000
 
 def nada_main() -> List[Output]:
     """
@@ -26,9 +25,7 @@ def nada_main() -> List[Output]:
     coordinator = input_parties[-1]
     input_parties = input_parties[:-1]
 
-    program_order = PublicInteger(
-        Input(name="program_order", party=coordinator)
-    )  # This is the program in execution order
+    program_order = PublicInteger(Input(name="program_order", party=coordinator)) # This is the program in execution order
 
     input_arrays = [
         na.array([DIM], input_parties[i], chr(ord("A") + i), SecretInteger)
@@ -44,11 +41,7 @@ def nada_main() -> List[Output]:
     # Result is output to all parties
     outputs = []
     for party in input_parties:
-        outputs += result.output(
-            party, "my_output"
-        )  # The output is given to all parties
-        outputs += [
-            Output(program_order, "program_order", party)
-        ]  # The program order is also publically given to all parties
+        outputs += result.output(party, "my_output") # The output is given to all parties 
+        outputs += [Output(program_order, "program_order", party)] # The program order is also publically given to all parties
 
     return outputs

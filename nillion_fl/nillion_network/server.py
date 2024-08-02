@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import os
 import subprocess
+import concurrent.futures
 
 import nada_numpy.client as na_client
 import numpy as np
@@ -182,15 +183,19 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
             compute_bindings.add_output_party(self.party_names[client_id], user_id)
 
         compute_futures = []
-        for thread in range(num_threads):
 
-            thread_store_ids = [
-                party_store_ids[thread] for party_store_ids in store_ids
-            ]
-            # Create a computation time secret to use
-            computation_time_secrets = nillion.NadaValues(
-                {"program_order": nillion.Integer(thread)}
-            )
+        thread_store_ids = [
+            [party_store_ids[thread] for party_store_ids in store_ids]
+            for thread in range(num_threads)
+        ]
+
+        # Create a computation time secret to use
+        computation_time_secrets_list = [
+            nillion.NadaValues({"program_order": nillion.Integer(thread)})
+            for thread in range(num_threads)
+        ]
+
+        async def get_quote_and_pay_wrapper(computation_time_secrets):
 
             # Get cost quote, then pay for operation to compute
             receipt_compute = await get_quote_and_pay(
@@ -201,8 +206,19 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
                 self.cluster_id,
             )
 
-            # Compute, passing all params including the receipt that shows proof of payment
-            compute_future = self.client.compute(
+            return receipt_compute
+
+        receipts_compute = await asyncio.gather(
+            *[
+                get_quote_and_pay_wrapper(computation_time_secret)
+                for computation_time_secret in computation_time_secrets_list
+            ]
+        )
+
+        async def compute_wrapper(
+            thread_store_ids, computation_time_secrets, receipt_compute
+        ):
+            return await self.client.compute(
                 self.cluster_id,
                 compute_bindings,
                 thread_store_ids,
@@ -210,9 +226,26 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
                 receipt_compute,
             )
 
-            compute_futures.append(compute_future)
+            # Use ThreadPoolExecutor to parallelize the operation
 
-        uuids = await asyncio.gather(*compute_futures)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                asyncio.wrap_future(
+                    executor.submit(
+                        asyncio.run,
+                        compute_wrapper(
+                            thread_store_id, computation_time_secrets, receipt_compute
+                        ),
+                    )
+                )
+                for thread_store_id, computation_time_secrets, receipt_compute in zip(
+                    thread_store_ids, computation_time_secrets_list, receipts_compute
+                )
+            ]
+
+            # Wait for all futures to complete
+            uuids = await asyncio.gather(*futures)
+
         return uuids
 
 
