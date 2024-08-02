@@ -18,7 +18,7 @@ from nillion_fl.nillion_network.component import NillionNetworkComponent
 from nillion_fl.nillion_network.utils import JsonDict, store_secret_array
 from nillion_python_helpers import create_nillion_client, create_payments_config
 from py_nillion_client import NodeKey, UserKey
-from nillion_python_helpers import get_quote_and_pay
+from nillion_python_helpers import get_quote, get_quote_and_pay, pay_with_quote
 
 home = os.getenv("HOME")
 # load_dotenv(f"{home}/.config/nillion/nillion-devnet.env")
@@ -71,12 +71,11 @@ class NillionNetworkClient(NillionNetworkComponent):
         """
         Stores multiple arrays using thread parallelism, while maintaining async compatibility.
         """
-
         # Create a permissions object to attach to the stored secret
         permissions = nillion.Permissions.default_for_user(self.client.user_id)
         permissions.add_compute_permissions({server_user_id: {program_id}})
 
-        # Create a secret
+        # Create secrets
         stored_secrets = [
             nillion.NadaValues(
                 na_client.array(array, secret_name, na_client.SecretRational)
@@ -84,35 +83,66 @@ class NillionNetworkClient(NillionNetworkComponent):
             for array in arrays
         ]
 
-        receipts_future = [
-            get_quote_and_pay(
+        async def get_quote_wrapper(stored_secret):
+            return await get_quote(
                 self.client,
                 nillion.Operation.store_values(stored_secret, ttl_days=1),
-                self.payments_wallet,
-                self.payments_client,
                 self.cluster_id,
             )
-            for stored_secret in stored_secrets
-        ]
 
-        receipts_store = await asyncio.gather(*receipts_future)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                asyncio.wrap_future(
+                    executor.submit(asyncio.run, get_quote_wrapper(stored_secret))
+                )
+                for stored_secret in stored_secrets
+            ]
 
-        # Store a secret, passing in the receipt that shows proof of payment
-        store_values_futures = [
-            self.client.store_values(
+            # Wait for all futures to complete
+            quotes = await asyncio.gather(*futures)
+
+        async def pay_with_quote_wrapper(quote):
+            return await pay_with_quote(
+                quote,
+                self.payments_wallet,
+                self.payments_client,
+            )
+
+        receipts_store = await asyncio.gather(
+            *[pay_with_quote_wrapper(quote) for quote in quotes]
+        )
+
+        # # Get quotes and pay
+        # async def get_quote_and_pay_wrapper(stored_secret):
+        #     return await get_quote_and_pay(
+        #         self.client,
+        #         nillion.Operation.store_values(stored_secret, ttl_days=1),
+        #         self.payments_wallet,
+        #         self.payments_client,
+        #         self.cluster_id,
+        #     )
+
+        # receipts_store = await asyncio.gather(
+        #     *[get_quote_and_pay_wrapper(secret) for secret in stored_secrets]
+        # )
+
+        # Prepare store_values operations
+        async def store_values_wrapper(stored_secret, receipt_store):
+            return await self.client.store_values(
                 self.cluster_id, stored_secret, permissions, receipt_store
             )
-            for stored_secret, receipt_store in zip(stored_secrets, receipts_store)
-        ]
 
         # Use ThreadPoolExecutor to parallelize the operation
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            # Create a list of futures
             futures = [
                 asyncio.wrap_future(
-                    executor.submit(asyncio.run, store_values_future))
-                for store_values_future in store_values_futures
+                    executor.submit(
+                        asyncio.run, store_values_wrapper(stored_secret, receipt_store)
+                    )
+                )
+                for stored_secret, receipt_store in zip(stored_secrets, receipts_store)
             ]
+
             # Wait for all futures to complete
             store_ids = await asyncio.gather(*futures)
 
