@@ -10,7 +10,7 @@ import nada_numpy as na
 from nada_dsl import *
 
 NUM_PARTIES = 2
-DIM = 1000
+DIM = 100
 
 
 def nada_main() -> List[Output]:

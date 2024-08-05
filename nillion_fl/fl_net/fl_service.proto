@@ -9,7 +9,9 @@ service FederatedLearningService {
   rpc ScheduleLearningIteration(stream StoreIDs) returns (stream ScheduleRequest) {}
 }
 
-message RegisterRequest {}
+message RegisterRequest {
+  int32 model_size = 1;
+}
 
 message ClientInfo {
   int32 client_id = 1;
@@ -19,9 +21,10 @@ message ClientInfo {
 
 // For the first iteration the ScheduleResponse has a store_id = token
 message StoreIDs {
-  repeated string store_ids = 1;
+  string store_id = 1;
   string party_id = 2;
   string token = 3;
+  int32 batch_id = 4;
 }
 
 message ScheduleRequest{

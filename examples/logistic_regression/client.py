@@ -19,12 +19,19 @@ logger.debug(f"Training on {DEVICE} using PyTorch {torch.__version__}")
 class NillionFLClient(FederatedLearningClient):
 
     def __init__(self, net, trainloader, valloader, config):
-        super(NillionFLClient, self).__init__(net, trainloader, valloader)
+        self.net = net
+        self.trainloader = trainloader
+        self.valloader = valloader
+        self.num_parameters = sum(
+            p.numel() for p in net.parameters() if p.requires_grad
+        )
         self.config = config
         self.criterion = nn.BCELoss()
         self.optimizer = optim.SGD(
             self.net.parameters(), lr=self.config["learning_rate"]
         )
+
+        super(NillionFLClient, self).__init__(self.num_parameters)
 
     def get_parameters(self) -> np.ndarray:
         """
@@ -123,14 +130,13 @@ class NillionFLClient(FederatedLearningClient):
 
 
 def run(client_id):
-    NUM_PARAMETERS = 10
+    NUM_PARAMETERS = 1000  # Number of features in our dataset
     NUM_CLIENTS = 2
-    input_dim = 10  # Number of features in our dataset
-    net = Net(input_dim)
+    net = Net(NUM_PARAMETERS)
 
     # Generate data
     trainloaders, valloaders = load_datasets(
-        NUM_CLIENTS, batch_size=0, num_features=input_dim
+        NUM_CLIENTS, batch_size=0, num_features=NUM_PARAMETERS
     )  # We're using only one client for this example
 
     client = NillionFLClient(

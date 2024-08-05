@@ -5,6 +5,7 @@ import asyncio
 import concurrent.futures
 import os
 import subprocess
+import threading
 
 import nada_numpy.client as na_client
 import numpy as np
@@ -119,7 +120,7 @@ class NillionNetworkServer(NillionNetworkComponent):
         except subprocess.CalledProcessError as e:
             logger.error(f"Error occurred while running 'nada build': {e}")
 
-    def compile_program(self, batch_size):
+    def compile_program(self, batch_size: int):
         # Compile the program
         self.batch_size = batch_size
 
@@ -169,7 +170,12 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
         super().__init__("fed_avg", num_parties, num_threads, filename)
 
     async def compute(
-        self, num_threads: int, store_ids: list, party_ids: dict, program_order: int
+        self,
+        store_ids: list,
+        party_ids: dict,
+        program_order: int,
+        *,
+        __lock: threading.Lock = threading.Lock(),
     ):
         # Bind the parties in the computation to the client to set input and output parties
         compute_bindings = nillion.ProgramBindings(self.program_id)
@@ -179,7 +185,41 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
             compute_bindings.add_input_party(self.party_names[client_id], user_id)
             compute_bindings.add_output_party(self.party_names[client_id], user_id)
 
-        compute_futures = []
+        # Create a computation time secret to use
+        computation_time_secrets = nillion.NadaValues(
+            {"program_order": nillion.Integer(program_order)}
+        )
+        with __lock:
+            # Get cost quote, then pay for operation to compute
+            receipt_compute = await get_quote_and_pay(
+                self.client,
+                nillion.Operation.compute(self.program_id, computation_time_secrets),
+                self.payments_wallet,
+                self.payments_client,
+                self.cluster_id,
+            )
+
+        # Compute, passing all params including the receipt that shows proof of payment
+        uuid = await self.client.compute(
+            self.cluster_id,
+            compute_bindings,
+            store_ids,
+            computation_time_secrets,
+            receipt_compute,
+        )
+
+        return uuid
+
+    async def compute_multithread(
+        self, num_threads: int, store_ids: list, party_ids: dict, program_order: int
+    ):
+        # Bind the parties in the computation to the client to set input and output parties
+        compute_bindings = nillion.ProgramBindings(self.program_id)
+
+        compute_bindings.add_input_party(self.party_names[-1], self.user_id)
+        for client_id, user_id in party_ids.items():  # tuple (client_id(0..n), user_id)
+            compute_bindings.add_input_party(self.party_names[client_id], user_id)
+            compute_bindings.add_output_party(self.party_names[client_id], user_id)
 
         thread_store_ids = [
             [party_store_ids[thread] for party_store_ids in store_ids]

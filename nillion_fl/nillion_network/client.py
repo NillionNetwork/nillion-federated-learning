@@ -33,11 +33,9 @@ class NillionNetworkClient(NillionNetworkComponent):
         self,
         client_id,
         num_parties,
-        num_threads,
         filename=f"{home}/.config/nillion/nillion-devnet.env",
     ):
         super().__init__(client_id, num_parties, filename)
-        self.num_threads = num_threads
 
     async def store_array(self, array, secret_name, program_id, server_user_id):
         """
@@ -114,20 +112,6 @@ class NillionNetworkClient(NillionNetworkComponent):
             *[pay_with_quote_wrapper(quote) for quote in quotes]
         )
 
-        # # Get quotes and pay
-        # async def get_quote_and_pay_wrapper(stored_secret):
-        #     return await get_quote_and_pay(
-        #         self.client,
-        #         nillion.Operation.store_values(stored_secret, ttl_days=1),
-        #         self.payments_wallet,
-        #         self.payments_client,
-        #         self.cluster_id,
-        #     )
-
-        # receipts_store = await asyncio.gather(
-        #     *[get_quote_and_pay_wrapper(secret) for secret in stored_secrets]
-        # )
-
         # Prepare store_values operations
         async def store_values_wrapper(stored_secret, receipt_store):
             return await self.client.store_values(
@@ -150,24 +134,27 @@ class NillionNetworkClient(NillionNetworkComponent):
 
         return store_ids
 
-    async def get_compute_results_from_nillion(self):
+    async def get_compute_results_from_nillion(self, num_results):
         compute_results = []
         logger.info("⌛ Waiting for result...")
-        while len(compute_results) < self.num_threads:
-            logger.debug(
-                f"🔍  Current compute results: {len(compute_results)} / {self.num_threads}"
-            )
+        logger.info(
+            f"🔍  Current compute results: {len(compute_results)} / {num_results}"
+        )
+        while len(compute_results) < num_results:
             compute_event = await self.client.next_compute_event()
             if isinstance(compute_event, nillion.ComputeFinishedEvent):
+                compute_results.append(compute_event.result.value)
+                logger.info(
+                    f"🔍  Current compute results: {len(compute_results)} / {num_results}"
+                )
                 logger.debug(
                     f"✅  Compute complete for compute_id {compute_event.uuid}"
                 )
                 logger.debug(f"🖥️  The result is {compute_event.result.value}")
-                compute_results.append(compute_event.result.value)
         return compute_results
 
-    async def get_compute_result(self):
-        results = await self.get_compute_results_from_nillion()
+    async def get_compute_result(self, num_results=1):
+        results = await self.get_compute_results_from_nillion(num_results)
         output_tuples = []
         for result in results:
             batch_size = len(result) - 1
@@ -187,15 +174,15 @@ class NillionNetworkClient(NillionNetworkComponent):
         return output_tuples
 
 
-async def main(batch_size, num_parties, client_id, secret_name, num_threads):
+async def main(batch_size, num_parties, client_id, secret_name, num_batches):
     program_config = JsonDict.from_json_file("/tmp/fed_avg.json")
     program_id = program_config["program_id"]
     server_user_id = program_config["server_user_id"]
 
-    nillion_client = NillionNetworkClient(client_id, num_parties, num_threads)
+    nillion_client = NillionNetworkClient(client_id, num_parties)
 
     store_ids = await nillion_client.store_arrays(
-        [np.ones(batch_size) * i for i in range(1, num_threads + 1)],
+        [np.ones(batch_size) * i for i in range(1, num_batches + 1)],
         secret_name,
         program_id,
         server_user_id,
@@ -205,7 +192,7 @@ async def main(batch_size, num_parties, client_id, secret_name, num_threads):
         f"/tmp/client_{client_id}.json"
     )
 
-    results = await nillion_client.get_compute_result()
+    results = await nillion_client.get_compute_result(num_results=num_batches)
     return results
 
 
@@ -220,9 +207,9 @@ if __name__ == "__main__":
         help="The number of secrets in the computation",
     )
     parser.add_argument(
-        "num_threads",
+        "num_batches",
         type=int,
-        help="The number of concurrent computations",
+        help="The number of concurrent batches being sent",
     )
     parser.add_argument(
         "num_parties",
