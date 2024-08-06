@@ -102,7 +102,7 @@ class FederatedLearningClient(object):
             )
             # Prepare a response
             logger.debug(
-                f"Storing secret {secret_name} with batch {np.concatenate([batch[:3], batch[-3:]])} {batch.shape}, store_id {store_id}, party_id {self.nillion_client.party_id}, batch_id {batch_id}, token {self.fl_client.client_info.token}"
+                f"Storing secret {secret_name} for batch {batch_id}: store_id {store_id} = [{np.concatenate([batch[:3], batch[-3:]])} {batch.shape}],  party_id {self.nillion_client.party_id}, token {self.fl_client.client_info.token}"
             )
             self.fl_client.send_store_id(
                 store_id, self.nillion_client.party_id, self.fl_client.client_info.token, batch_id

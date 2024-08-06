@@ -84,7 +84,7 @@ class FLClientCore(object):
         with self.responses_lock:
             self.responses.append(
                 fl_pb2.StoreIDs(
-                    store_id=store_id, party_id=store_id, token=token, batch_id=batch_id
+                    store_id=store_id, party_id=party_id, token=token, batch_id=batch_id
                 )
             )
 
