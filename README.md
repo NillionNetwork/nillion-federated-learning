@@ -36,5 +36,5 @@ poetry run lr_client 1
 # Regenerating gRPC
 
 ```
-poetry run python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. nillion_fl/fl_net/fl_service.proto
+poetry run python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. nillion_fl/network/fl_service.proto
 ```

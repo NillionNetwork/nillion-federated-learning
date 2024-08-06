@@ -2,8 +2,9 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from nillion_fl.fl_net import \
-    fl_service_pb2 as nillion__fl_dot_fl__net_dot_fl__service__pb2
+from nillion_fl.network import (
+    fl_service_pb2 as nillion__fl_dot_network_dot_fl__service__pb2,
+)
 
 
 class FederatedLearningServiceStub(object):
@@ -17,13 +18,13 @@ class FederatedLearningServiceStub(object):
         """
         self.RegisterClient = channel.unary_unary(
             "/fl_net.FederatedLearningService/RegisterClient",
-            request_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.RegisterRequest.SerializeToString,
-            response_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ClientInfo.FromString,
+            request_serializer=nillion__fl_dot_network_dot_fl__service__pb2.RegisterRequest.SerializeToString,
+            response_deserializer=nillion__fl_dot_network_dot_fl__service__pb2.ClientInfo.FromString,
         )
         self.ScheduleLearningIteration = channel.stream_stream(
             "/fl_net.FederatedLearningService/ScheduleLearningIteration",
-            request_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.StoreIDs.SerializeToString,
-            response_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleRequest.FromString,
+            request_serializer=nillion__fl_dot_network_dot_fl__service__pb2.StoreIDs.SerializeToString,
+            response_deserializer=nillion__fl_dot_network_dot_fl__service__pb2.ScheduleRequest.FromString,
         )
 
 
@@ -47,13 +48,13 @@ def add_FederatedLearningServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
         "RegisterClient": grpc.unary_unary_rpc_method_handler(
             servicer.RegisterClient,
-            request_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.RegisterRequest.FromString,
-            response_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ClientInfo.SerializeToString,
+            request_deserializer=nillion__fl_dot_network_dot_fl__service__pb2.RegisterRequest.FromString,
+            response_serializer=nillion__fl_dot_network_dot_fl__service__pb2.ClientInfo.SerializeToString,
         ),
         "ScheduleLearningIteration": grpc.stream_stream_rpc_method_handler(
             servicer.ScheduleLearningIteration,
-            request_deserializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.StoreIDs.FromString,
-            response_serializer=nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleRequest.SerializeToString,
+            request_deserializer=nillion__fl_dot_network_dot_fl__service__pb2.StoreIDs.FromString,
+            response_serializer=nillion__fl_dot_network_dot_fl__service__pb2.ScheduleRequest.SerializeToString,
         ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -83,8 +84,8 @@ class FederatedLearningService(object):
             request,
             target,
             "/fl_net.FederatedLearningService/RegisterClient",
-            nillion__fl_dot_fl__net_dot_fl__service__pb2.RegisterRequest.SerializeToString,
-            nillion__fl_dot_fl__net_dot_fl__service__pb2.ClientInfo.FromString,
+            nillion__fl_dot_network_dot_fl__service__pb2.RegisterRequest.SerializeToString,
+            nillion__fl_dot_network_dot_fl__service__pb2.ClientInfo.FromString,
             options,
             channel_credentials,
             insecure,
@@ -112,8 +113,8 @@ class FederatedLearningService(object):
             request_iterator,
             target,
             "/fl_net.FederatedLearningService/ScheduleLearningIteration",
-            nillion__fl_dot_fl__net_dot_fl__service__pb2.StoreIDs.SerializeToString,
-            nillion__fl_dot_fl__net_dot_fl__service__pb2.ScheduleRequest.FromString,
+            nillion__fl_dot_network_dot_fl__service__pb2.StoreIDs.SerializeToString,
+            nillion__fl_dot_network_dot_fl__service__pb2.ScheduleRequest.FromString,
             options,
             channel_credentials,
             insecure,

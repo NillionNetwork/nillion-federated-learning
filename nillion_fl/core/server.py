@@ -1,0 +1,2 @@
+def ServerCore(object):
+    pass

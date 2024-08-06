@@ -31,7 +31,7 @@ class NillionFLClient(FederatedLearningClient):
             self.net.parameters(), lr=self.config["learning_rate"]
         )
 
-        super(NillionFLClient, self).__init__(self.num_parameters)
+        super(NillionFLClient, self).__init__(num_parameters=self.num_parameters)
 
     def get_parameters(self) -> np.ndarray:
         """

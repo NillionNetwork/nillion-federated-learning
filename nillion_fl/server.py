@@ -10,11 +10,10 @@ from queue import Queue
 
 import grpc
 
-import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
-import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
+import nillion_fl.network.fl_service_pb2 as fl_pb2
+import nillion_fl.network.fl_service_pb2_grpc as fl_pb2_grpc
 from nillion_fl.logs import logger, uuid_str
-from nillion_fl.nillion_network.server import (MAX_SECRET_BATCH_SIZE,
-                                               FedAvgNillionNetworkServer)
+from nillion_fl.nilvm.server import MAX_SECRET_BATCH_SIZE, FedAvgNillionNetworkServer
 
 
 # Enum to represent the state of a client

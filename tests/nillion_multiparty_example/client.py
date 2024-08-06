@@ -24,14 +24,22 @@ from cosmpy.aerial.client import LedgerClient
 from cosmpy.aerial.wallet import LocalWallet
 from cosmpy.crypto.keypairs import PrivateKey
 from dotenv import load_dotenv
-from nillion_python_helpers import (create_nillion_client,
-                                    create_payments_config, get_quote,
-                                    get_quote_and_pay, pay_with_quote)
+from nillion_python_helpers import (
+    create_nillion_client,
+    create_payments_config,
+    get_quote,
+    get_quote_and_pay,
+    pay_with_quote,
+)
 from py_nillion_client import NodeKey, UserKey
 
 from nillion_fl.nillion_network.fed_avg.src.config import DIM, NUM_PARTIES
-from nillion_fl.nillion_network.utils import (JsonDict, compute, store_program,
-                                              store_secret_array)
+from nillion_fl.nillion_network.utils import (
+    JsonDict,
+    compute,
+    store_program,
+    store_secret_array,
+)
 
 home = os.getenv("HOME")
 load_dotenv(f"{home}/.config/nillion/nillion-devnet.env")

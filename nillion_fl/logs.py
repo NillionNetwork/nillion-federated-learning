@@ -426,6 +426,7 @@ nouns = [
 
 def uuid_str(uuid_str):
     # Convert the UUID string to an integer
+    print(uuid_str)
     uuid_int = int(uuid_str.replace("-", ""), 16)
 
     # Use the integer to pick words from the lists

@@ -8,8 +8,9 @@ import grpc_testing
 
 import nillion_fl.fl_net.fl_service_pb2 as fl_pb2
 import nillion_fl.fl_net.fl_service_pb2_grpc as fl_pb2_grpc
-from nillion_fl.server import \
-    FederatedLearningServicer  # Replace 'your_module' with the actual module name
+from nillion_fl.server import (
+    FederatedLearningServicer,
+)  # Replace 'your_module' with the actual module name
 
 
 class TestFederatedLearningServicer(unittest.TestCase):
