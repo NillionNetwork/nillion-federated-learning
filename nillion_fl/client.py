@@ -110,6 +110,7 @@ class FederatedLearningClient(object):
     
     def start_client(self,):
         self.fl_client.register_client(num_parameters=self.num_parameters)
+        self.nillion_client.init()
         self.fl_client.start_learning(callback=self.learning_iteration)
         self.stop_event.set()
         if self.store_secret_thread and self.store_secret_thread.is_alive():

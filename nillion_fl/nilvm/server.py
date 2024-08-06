@@ -183,11 +183,14 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
     ):
         # Bind the parties in the computation to the client to set input and output parties
         compute_bindings = nillion.ProgramBindings(self.program_id)
-
-        compute_bindings.add_input_party(self.party_names[-1], self.user_id)
-        for client_id, user_id in party_ids.items():  # tuple (client_id(0..n), user_id)
-            compute_bindings.add_input_party(self.party_names[client_id], user_id)
-            compute_bindings.add_output_party(self.party_names[client_id], user_id)
+        logger.error(f"Using store_ids: {store_ids}")
+        logger.error(f"Using party_ids: {party_ids}")
+        logger.error(f"Using program_order: {program_order}")
+        logger.error(f"self.party_names: {self.party_names}")
+        compute_bindings.add_input_party(self.party_names[-1], self.party_id)
+        for client_id, party_id in party_ids.items():  # tuple (client_id(0..n), user_id)
+            compute_bindings.add_input_party(self.party_names[client_id], party_id)
+            compute_bindings.add_output_party(self.party_names[client_id], party_id)
 
         # Create a computation time secret to use
         computation_time_secrets = nillion.NadaValues(

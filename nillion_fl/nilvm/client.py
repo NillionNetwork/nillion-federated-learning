@@ -39,7 +39,11 @@ class NillionNetworkClient(NillionNetworkComponent):
         num_parties,
         filename=f"{home}/.config/nillion/nillion-devnet.env",
     ):
+        logger.info(f"🚀  Initializing NillionNetworkClient with client_id {client_id}")
         super().__init__(client_id, num_parties, filename)
+
+    def init(self):
+        pass
 
     async def store_array(self, array, secret_name, program_id, server_user_id):
         """
