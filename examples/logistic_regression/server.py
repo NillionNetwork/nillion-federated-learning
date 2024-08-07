@@ -1,8 +1,8 @@
-from nillion_fl.server import FederatedLearningServicer
+from nillion_fl.server import FederatedLearningServer
 
 
 def main():
-    FederatedLearningServicer(num_parties=2, batch_size=100).serve()
+    FederatedLearningServer(num_parties=2, batch_size=100).serve()
 
 
 if __name__ == "__main__":

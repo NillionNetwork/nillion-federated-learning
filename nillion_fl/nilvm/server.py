@@ -15,13 +15,9 @@ from cosmpy.aerial.wallet import LocalWallet
 from cosmpy.crypto.keypairs import PrivateKey
 from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
-from nillion_python_helpers import (
-    create_nillion_client,
-    create_payments_config,
-    get_quote,
-    get_quote_and_pay,
-    pay_with_quote,
-)
+from nillion_python_helpers import (create_nillion_client,
+                                    create_payments_config, get_quote,
+                                    get_quote_and_pay, pay_with_quote)
 from py_nillion_client import NodeKey, UserKey
 
 from nillion_fl.logs import logger
@@ -184,7 +180,10 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
         # Bind the parties in the computation to the client to set input and output parties
         compute_bindings = nillion.ProgramBindings(self.program_id)
         compute_bindings.add_input_party(self.party_names[-1], self.party_id)
-        for client_id, party_id in party_ids.items():  # tuple (client_id(0..n), user_id)
+        for (
+            client_id,
+            party_id,
+        ) in party_ids.items():  # tuple (client_id(0..n), user_id)
             compute_bindings.add_input_party(self.party_names[client_id], party_id)
             compute_bindings.add_output_party(self.party_names[client_id], party_id)
 

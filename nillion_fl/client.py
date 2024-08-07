@@ -1,9 +1,10 @@
 import threading
+
 import numpy as np
-import asyncio
-from nillion_fl.logs import logger, uuid_str
-from nillion_fl.core.client import FLClientCore
-from nillion_fl.nilvm.client import NillionNetworkClient
+
+from nillion_fl.core.client.grpc_client import FLClientCore
+from nillion_fl.core.client.nillion_integration import NillionClientIntegration
+from nillion_fl.logs import logger
 
 
 class FederatedLearningClient(object):
@@ -13,6 +14,7 @@ class FederatedLearningClient(object):
         self.fl_client = FLClientCore(host, port)
         self.parameters = None
         self.num_parameters = num_parameters
+        self.store_secret_thread = None
 
         # Locks for critical sections
         self.stop_event = threading.Event()
@@ -20,11 +22,11 @@ class FederatedLearningClient(object):
     @property
     def nillion_client(self):
         if self.__nillion_client is None:
-            self.__nillion_client = NillionNetworkClient(
-                self.fl_client.client_info.client_id, self.fl_client.client_info.num_parties
+            self.__nillion_client = NillionClientIntegration(
+                self.fl_client.client_info.client_id,
+                self.fl_client.client_info.num_parties,
             )
         return self.__nillion_client
-
 
     def learning_iteration(self, learning_request):
         """
@@ -47,9 +49,7 @@ class FederatedLearningClient(object):
         self.store_secret_thread = threading.Thread(target=store_secrets_thread)
         self.store_secret_thread.start()
 
-        new_parameters = asyncio.run(
-            self.nillion_client.get_compute_result(expected_results)
-        )
+        new_parameters = self.nillion_client.get_compute_result(expected_results)
 
         new_parameters = sorted(new_parameters, key=lambda x: x[0])
         new_parameters = np.concatenate([x[1] for x in new_parameters])
@@ -97,25 +97,31 @@ class FederatedLearningClient(object):
             batch_id = batch_start // batch_size
             batch = parameters[batch_start : batch_start + batch_size]
 
-            store_id = asyncio.run(
-                self.nillion_client.store_array(batch, secret_name, program_id, user_id)
+            store_id = self.nillion_client.store_array(
+                batch, secret_name, program_id, user_id
             )
             # Prepare a response
             logger.debug(
                 f"Storing secret {secret_name} for batch {batch_id}: store_id {store_id} = [{np.concatenate([batch[:3], batch[-3:]])} {batch.shape}],  party_id {self.nillion_client.party_id}, token {self.fl_client.client_info.token}"
             )
             self.fl_client.send_store_id(
-                store_id, self.nillion_client.party_id, self.fl_client.client_info.token, batch_id
+                store_id,
+                self.nillion_client.party_id,
+                self.fl_client.client_info.token,
+                batch_id,
             )
-    
-    def start_client(self,):
+
+    def start_client(
+        self,
+    ):
         self.fl_client.register_client(num_parameters=self.num_parameters)
         self.nillion_client.init()
         self.fl_client.start_learning(callback=self.learning_iteration)
         self.stop_event.set()
         if self.store_secret_thread and self.store_secret_thread.is_alive():
             self.store_secret_thread.join()
-    
+
+
 def main():
     """
     Main function to create and start a FederatedLearningClient.
@@ -126,5 +132,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

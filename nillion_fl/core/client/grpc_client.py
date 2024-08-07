@@ -35,7 +35,6 @@ class FLClientCore(object):
         # locks for critical sections
         self.responses_lock = threading.Lock()
 
-
     @property
     def client_info(self):
         """
@@ -69,7 +68,9 @@ class FLClientCore(object):
         Initialize the stream with the server.
 
         """
-        self.send_store_id(store_id="", party_id="", token=self.client_info.token, batch_id=-1)
+        self.send_store_id(
+            store_id="", party_id="", token=self.client_info.token, batch_id=-1
+        )
 
     def send_store_id(self, store_id: str, party_id: str, token: str, batch_id: int):
         """
@@ -93,7 +94,7 @@ class FLClientCore(object):
         Generator function to send client requests to the server.
         """
         logger.debug("[CLIENT] Sending initial message")
-        self.initialize_stream() # Inputs a initial store_id, party_id, token, and batch_id
+        self.initialize_stream()  # Inputs a initial store_id, party_id, token, and batch_id
         while True:
             response = None
             with self.responses_lock:
@@ -120,20 +121,21 @@ class FLClientCore(object):
         learning_requests = self.stub.ScheduleLearningIteration(
             self.client_request_sender()
         )
+        try:
+            for learning_request in learning_requests:
+                logger.debug("[CLIENT] Received learning request")
+                if learning_request.program_id == "-1":
+                    logger.warning("Received STOP training request")
+                    learning_requests.cancel()
+                    break
 
-        for learning_request in learning_requests:
-            logger.debug("[CLIENT] Received learning request")
-            if learning_request.program_id == "-1":
-                logger.warning("Received STOP training request")
-                learning_requests.cancel()
-                break
+                logger.debug(f"Learning Request: {learning_request}")
 
-            logger.debug(f"Learning Request: {learning_request}")
+                callback(learning_request)
+        except grpc.RpcError as e:
+            logger.error(f"Error in schedule_learning_iteration: {e}")
 
-            callback(learning_request)
-            
         return None
-
 
     def start_learning(self, callback: callable):
         """
@@ -150,4 +152,3 @@ class FLClientCore(object):
         finally:
             if self.channel:
                 self.channel.close()
-
