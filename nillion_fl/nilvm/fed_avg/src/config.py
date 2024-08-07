@@ -1,2 +1,0 @@
-DIM = 1000
-NUM_PARTIES = 2

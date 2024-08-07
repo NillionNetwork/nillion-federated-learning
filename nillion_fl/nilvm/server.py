@@ -1,4 +1,7 @@
-"""Dot Product example script"""
+"""
+This module implements a Nillion Network server for federated averaging.
+It handles program compilation, storage, and computation across multiple parties.
+"""
 
 import argparse
 import asyncio
@@ -7,18 +10,9 @@ import os
 import subprocess
 import threading
 
-import nada_numpy.client as na_client
-import numpy as np
 import py_nillion_client as nillion
-from cosmpy.aerial.client import LedgerClient
-from cosmpy.aerial.wallet import LocalWallet
-from cosmpy.crypto.keypairs import PrivateKey
-from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
-from nillion_python_helpers import (create_nillion_client,
-                                    create_payments_config, get_quote,
-                                    get_quote_and_pay, pay_with_quote)
-from py_nillion_client import NodeKey, UserKey
+from nillion_python_helpers import get_quote_and_pay
 
 from nillion_fl.logs import logger
 from nillion_fl.nilvm.component import NillionNetworkComponent
@@ -30,6 +24,10 @@ MAX_SECRET_BATCH_SIZE = 5000
 
 
 class NillionNetworkServer(NillionNetworkComponent):
+    """
+    Base class for Nillion Network server components.
+    Handles program compilation, storage, and basic computation setup.
+    """
 
     def __init__(
         self,
@@ -41,36 +39,30 @@ class NillionNetworkServer(NillionNetworkComponent):
         super().__init__(9, num_parties, filename)
         self.program_name = program_name
         self.num_threads = num_threads
+        self.batch_size = None
+        self.program_mir_path = None
+        self.program_id = None
 
     def create_src_file(self, src_directory, batch_size):
         """
-        Creates the source files for the Nada program in the specified directory based on the Jinja templates.
+        Creates the source files for the Nada program
+        in the specified directory based on the Jinja templates.
 
         Args:
-            directory: The directory where the source files will be created.
-            parameters: A dictionary of parameters to include in the source files.
+            src_directory: The directory where the source files will be created.
+            batch_size: The batch size for the program.
         """
-        # template_path = os.path.join(src_directory, f"{self.program_name}.py.jinja")
-
-        # Set up the Jinja2 environment
         env = Environment(loader=FileSystemLoader(src_directory))
-
-        # Load the template
         src_template = env.get_template(f"{self.program_name}.py.jinja")
-
-        # Define your data
         data = {
             "num_parties": self.num_parties,
             "dim": batch_size,
         }
-
-        # Render the template
         output = src_template.render(data)
         src_file_name = f"custom_{self.program_name}"
         src_file_path = os.path.join(src_directory, f"{src_file_name}.py")
 
-        # Write to a Python file
-        with open(src_file_path, "w") as f:
+        with open(src_file_path, "w", encoding="utf-8") as f:
             f.write(output)
 
         return src_file_path, src_file_name
@@ -79,29 +71,24 @@ class NillionNetworkServer(NillionNetworkComponent):
         """
         Creates a TOML file for the Nada program in the specified directory.
 
-        :param program_directory: The directory where the TOML file will be created.
-        :param src_file_name: The name of the source file.
+        Args:
+            program_directory: The directory where the TOML file will be created.
+            src_file_name: The name of the source file.
         """
-        # Set up the Jinja2 environment
         env = Environment(loader=FileSystemLoader(program_directory))
-
-        # Load the template
         toml_template = env.get_template("nada-project.toml.jinja")
 
         if not src_file_name.endswith(".py"):
             src_file_name += ".py"
 
-        # Define your data
         data = {
             "programs": [src_file_name],
         }
 
-        # Render the template
         output = toml_template.render(data)
         toml_file_path = os.path.join(program_directory, "nada-project.toml")
 
-        # Write to a TOML file
-        with open(toml_file_path, "w") as f:
+        with open(toml_file_path, "w", encoding="utf-8") as f:
             f.write(output)
 
     @staticmethod
@@ -109,7 +96,9 @@ class NillionNetworkServer(NillionNetworkComponent):
         """
         Executes the 'nada build' command in the specified directory.
 
-        :param directory: The directory where the 'nada build' command will be executed.
+        Args:
+            directory: The directory where the 'nada build' command will be executed.
+            filename: The filename to build (optional).
         """
         try:
             cmd = ["nada", "build"]
@@ -118,10 +107,18 @@ class NillionNetworkServer(NillionNetworkComponent):
             subprocess.run(cmd, cwd=directory, check=True)
             logger.debug("nada build executed successfully.")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Error occurred while running 'nada build': {e}")
+            logger.error("Error occurred while running 'nada build': %s", e)
 
     def compile_program(self, batch_size: int):
-        # Compile the program
+        """
+        Compiles the Nada program with the given batch size.
+
+        Args:
+            batch_size: The batch size for the program.
+
+        Returns:
+            str: The path to the compiled program MIR file.
+        """
         self.batch_size = batch_size
 
         program_directory = os.path.abspath(
@@ -129,7 +126,7 @@ class NillionNetworkServer(NillionNetworkComponent):
         )
         src_path = os.path.join(program_directory, "src/")
 
-        src_file_path, src_file_name = self.create_src_file(src_path, batch_size)
+        _, src_file_name = self.create_src_file(src_path, batch_size)
 
         self.program_mir_path = os.path.join(
             program_directory, f"target/{src_file_name}.nada.bin"
@@ -137,12 +134,17 @@ class NillionNetworkServer(NillionNetworkComponent):
 
         self.update_toml_file(program_directory, src_file_name)
         NillionNetworkServer.execute_nada_build(program_directory, src_file_name)
-        logger.debug(f"Compiled program {self.program_name}")
-        logger.debug(f"Program MIR path: {self.program_mir_path}")
+        logger.debug("Compiled program %s", self.program_name)
+        logger.debug("Program MIR path: %s", self.program_mir_path)
         return self.program_mir_path
 
     async def store_program(self):
+        """
+        Stores the compiled program on the Nillion network.
 
+        Returns:
+            str: The program ID of the stored program.
+        """
         self.program_id = await store_program(
             self.client,
             self.payments_wallet,
@@ -152,14 +154,30 @@ class NillionNetworkServer(NillionNetworkComponent):
             self.program_name,
             self.program_mir_path,
         )
-        logger.debug(f"Stored program {self.program_id}")
+        logger.debug("Stored program %s", self.program_id)
         return self.program_id
 
-    async def compute(self, secret_ids):
-        pass
+    async def compute(
+        self,
+        store_ids: list,
+        party_ids: dict,
+        program_order: int,
+        *,
+        __lock: threading.Lock = threading.Lock(),
+    ):
+        """
+        Placeholder method for computation. To be implemented by subclasses.
+
+        Args:
+            secret_ids: The secret IDs to be used in the computation.
+        """
+        raise NotImplementedError
 
 
 class FedAvgNillionNetworkServer(NillionNetworkServer):
+    """
+    Nillion Network server implementation for federated averaging.
+    """
 
     def __init__(
         self,
@@ -177,31 +195,42 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
         *,
         __lock: threading.Lock = threading.Lock(),
     ):
-        # Bind the parties in the computation to the client to set input and output parties
+        """
+        Performs the federated averaging computation.
+
+        Args:
+            store_ids: List of store IDs for the computation.
+            party_ids: Dictionary of party IDs.
+            program_order: The program order for the computation.
+            __lock: Threading lock for synchronization.
+
+        Returns:
+            str: The UUID of the computation.
+        """
+        # fmt: off
+        # pylint: disable=no-member
         compute_bindings = nillion.ProgramBindings(self.program_id)
+        # fmt: on
         compute_bindings.add_input_party(self.party_names[-1], self.party_id)
-        for (
-            client_id,
-            party_id,
-        ) in party_ids.items():  # tuple (client_id(0..n), user_id)
+        for client_id, party_id in party_ids.items():
             compute_bindings.add_input_party(self.party_names[client_id], party_id)
             compute_bindings.add_output_party(self.party_names[client_id], party_id)
 
-        # Create a computation time secret to use
+        # fmt: off
+        # pylint: disable=no-member
         computation_time_secrets = nillion.NadaValues(
             {"program_order": nillion.Integer(program_order)}
         )
+        # fmt: on
         with __lock:
-            # Get cost quote, then pay for operation to compute
             receipt_compute = await get_quote_and_pay(
                 self.client,
-                nillion.Operation.compute(self.program_id, computation_time_secrets),
+                nillion.Operation.compute(self.program_id, computation_time_secrets),  # type: ignore[attr-defined] # fmt: off # pylint: disable=line-too-long
                 self.payments_wallet,
                 self.payments_client,
                 self.cluster_id,
             )
 
-        # Compute, passing all params including the receipt that shows proof of payment
         uuid = await self.client.compute(
             self.cluster_id,
             compute_bindings,
@@ -213,13 +242,27 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
         return uuid
 
     async def compute_multithread(
-        self, num_threads: int, store_ids: list, party_ids: dict, program_order: int
+        self, num_threads: int, store_ids: list, party_ids: dict
     ):
-        # Bind the parties in the computation to the client to set input and output parties
+        """
+        Performs multi-threaded federated averaging computation.
+
+        Args:
+            num_threads: Number of threads to use for computation.
+            store_ids: List of store IDs for the computation.
+            party_ids: Dictionary of party IDs.
+            program_order: The program order for the computation.
+
+        Returns:
+            list: List of UUIDs for the computations.
+        """
+        # fmt: off
+        # pylint: disable=no-member
         compute_bindings = nillion.ProgramBindings(self.program_id)
+        # fmt: on
 
         compute_bindings.add_input_party(self.party_names[-1], self.user_id)
-        for client_id, user_id in party_ids.items():  # tuple (client_id(0..n), user_id)
+        for client_id, user_id in party_ids.items():
             compute_bindings.add_input_party(self.party_names[client_id], user_id)
             compute_bindings.add_output_party(self.party_names[client_id], user_id)
 
@@ -228,15 +271,15 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
             for thread in range(num_threads)
         ]
 
-        # Create a computation time secret to use
+        # fmt: off
+        # pylint: disable=no-member
         computation_time_secrets_list = [
             nillion.NadaValues({"program_order": nillion.Integer(thread)})
             for thread in range(num_threads)
         ]
+        # fmt: on
 
         async def get_quote_and_pay_wrapper(computation_time_secrets):
-
-            # Get cost quote, then pay for operation to compute
             receipt_compute = await get_quote_and_pay(
                 self.client,
                 nillion.Operation.compute(self.program_id, computation_time_secrets),
@@ -244,7 +287,6 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
                 self.payments_client,
                 self.cluster_id,
             )
-
             return receipt_compute
 
         receipts_compute = await asyncio.gather(
@@ -265,8 +307,6 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
                 receipt_compute,
             )
 
-            # Use ThreadPoolExecutor to parallelize the operation
-
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [
                 asyncio.wrap_future(
@@ -282,15 +322,21 @@ class FedAvgNillionNetworkServer(NillionNetworkServer):
                 )
             ]
 
-            # Wait for all futures to complete
             uuids = await asyncio.gather(*futures)
 
         return uuids
 
 
 async def main(batch_size, num_threads, client_ids):
+    """
+    Main function to run the Nillion Network server for federated averaging.
+
+    Args:
+        batch_size: The batch size for the computation.
+        num_threads: Number of threads to use for computation.
+        client_ids: List of client IDs participating in the computation.
+    """
     num_parties = len(client_ids)
-    # FedAvgNillionNetworkServer instance
     nillion_server = FedAvgNillionNetworkServer(num_parties, num_threads=num_threads)
     nillion_server.compile_program(batch_size)
     program_id = await nillion_server.store_program()
@@ -304,25 +350,21 @@ async def main(batch_size, num_threads, client_ids):
     )
     for client_id in client_ids:
         print(
-            f"\t poetry run python3 client.py {batch_size} {num_threads} {num_parties} {client_id} {chr(ord('A') + client_id)}"
+            f"\t poetry run python3 client.py {batch_size} {num_threads} {num_parties} {client_id} {chr(ord('A') + client_id)}"  # pylint: disable=line-too-long
         )
     input("Press ENTER to continue to compute ...")
     store_ids = []
     party_ids = {}
-    for i, client_id in enumerate(client_ids):
+    for client_id in client_ids:
         config = JsonDict.from_json_file(f"/tmp/client_{client_id}.json")
         store_ids.append(config["store_id"])
         party_ids[client_id] = config["party_id"]
 
-    logger.debug(f"Using store_ids: {store_ids}")
-    logger.debug(f"Using party_ids: {party_ids}")
+    logger.debug("Using store_ids: %s", store_ids)
+    logger.debug("Using party_ids: %s", party_ids)
 
-    # Compute
-
-    uuids = await nillion_server.compute(
-        num_threads, store_ids, party_ids, program_order=1234567890
-    )
-    logger.debug(f"Compute complete with UUIDs: {uuids}")
+    uuids = await nillion_server.compute_multithread(num_threads, store_ids, party_ids)
+    logger.debug("Compute complete with UUIDs: %s", uuids)
 
 
 if __name__ == "__main__":

@@ -1,18 +1,18 @@
-import asyncio
-import signal
+"""
+This module contains the FLClientCore class for participating in federated learning.
+"""
+
 import threading
-import time
-import uuid
+from typing import Callable
 
 import grpc
-import numpy as np
 
 import nillion_fl.network.fl_service_pb2 as fl_pb2
 import nillion_fl.network.fl_service_pb2_grpc as fl_pb2_grpc
 from nillion_fl.logs import logger, uuid_str
 
 
-class FLClientCore(object):
+class FLClientCore:
     """
     A client class for participating in federated learning.
     """
@@ -22,9 +22,8 @@ class FLClientCore(object):
         Initialize the FederatedLearningClient.
 
         Args:
-            net: The neural network model.
-            trainloader: Data loader for training data.
-            valloader: Data loader for validation data.
+            host (str): Server host address. Default is "localhost".
+            port (int): Server port number. Default is 50051.
         """
         self.responses = []
         self.__client_info = None
@@ -51,22 +50,22 @@ class FLClientCore(object):
         """
         Register the client with the federated learning server.
         """
-        request = fl_pb2.RegisterRequest(
+        request = fl_pb2.RegisterRequest(  # fmt: off # pylint: disable=no-member
             model_size=num_parameters,
         )
         self.__client_info = self.stub.RegisterClient(request)
         logger.debug(
-            f"""
-            Registered with client_id: {self.client_info.client_id}, 
-            token: {uuid_str(self.client_info.token)}, 
-            num_parties: {self.client_info.num_parties}
-            """
+            "Registered with client_id: %(client_id)s, token: %(token)s, num_parties: %(num_parties)s",  # pylint: disable=line-too-long
+            {
+                "client_id": self.client_info.client_id,
+                "token": uuid_str(self.client_info.token),
+                "num_parties": self.client_info.num_parties,
+            },
         )
 
     def initialize_stream(self):
         """
         Initialize the stream with the server.
-
         """
         self.send_store_id(
             store_id="", party_id="", token=self.client_info.token, batch_id=-1
@@ -84,7 +83,7 @@ class FLClientCore(object):
         """
         with self.responses_lock:
             self.responses.append(
-                fl_pb2.StoreIDs(
+                fl_pb2.StoreIDs(  # type: ignore[attr-defined] # fmt: off # pylint: disable=no-member
                     store_id=store_id, party_id=party_id, token=token, batch_id=batch_id
                 )
             )
@@ -98,10 +97,11 @@ class FLClientCore(object):
         while True:
             response = None
             with self.responses_lock:
-                if len(self.responses) > 0:
+                if self.responses:
                     response = self.responses.pop(0)
                     logger.error(
-                        f"[CLIENT] Sending store id response for batch: {response.batch_id} "
+                        "[CLIENT] Sending store id response for batch: %(batch_id)s",
+                        {"batch_id": response.batch_id},
                     )
             # This needs to be here to avoid a deadlock
             if response is not None:
@@ -109,14 +109,10 @@ class FLClientCore(object):
 
         logger.debug("[CLIENT][SEND] STOP")
 
-    def schedule_learning_iteration(self, callback: callable):
+    def schedule_learning_iteration(self, callback: Callable):
         """
         Schedule and manage learning iterations with the server.
-
-        Returns:
-            None
         """
-
         # Start the learning iteration process
         learning_requests = self.stub.ScheduleLearningIteration(
             self.client_request_sender()
@@ -129,21 +125,22 @@ class FLClientCore(object):
                     learning_requests.cancel()
                     break
 
-                logger.debug(f"Learning Request: {learning_request}")
+                logger.debug(
+                    "Learning Request: %(request)s", {"request": learning_request}
+                )
 
                 callback(learning_request)
         except grpc.RpcError as e:
-            logger.error(f"Error in schedule_learning_iteration: {e}")
+            logger.error(
+                "Error in schedule_learning_iteration: %(error)s", {"error": str(e)}
+            )
 
-        return None
-
-    def start_learning(self, callback: callable):
+    def start_learning(self, callback: Callable):
         """
         Start the federated learning client.
 
         Args:
-            host (str): Server host address. Default is "localhost".
-            port (int): Server port number. Default is 50051.
+            callback (callable): The callback function to handle learning requests.
         """
         try:
             self.schedule_learning_iteration(callback)

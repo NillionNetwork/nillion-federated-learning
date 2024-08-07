@@ -84,7 +84,6 @@ async def main(client_id: int, secret_name: str) -> None:
         payments_wallet,
         payments_client,
         cluster_id,
-        program_id,
         A,
         secret_name,
         nillion.SecretInteger,

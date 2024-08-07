@@ -1,3 +1,7 @@
+"""
+This module contains the FederatedLearningClient class which handles federated learning operations.
+"""
+
 import threading
 
 import numpy as np
@@ -7,9 +11,20 @@ from nillion_fl.core.client.nillion_integration import NillionClientIntegration
 from nillion_fl.logs import logger
 
 
-class FederatedLearningClient(object):
+class FederatedLearningClient:
+    """
+    A client class for handling federated learning operations.
+    """
 
     def __init__(self, host="localhost", port=50051, *, num_parameters):
+        """
+        Initialize the FederatedLearningClient with necessary parameters.
+
+        Args:
+            host (str): The server host.
+            port (int): The server port.
+            num_parameters (int): Number of model parameters.
+        """
         self.__nillion_client = None
         self.fl_client = FLClientCore(host, port)
         self.parameters = None
@@ -21,6 +36,12 @@ class FederatedLearningClient(object):
 
     @property
     def nillion_client(self):
+        """
+        Lazy initialization of the NillionClientIntegration.
+
+        Returns:
+            NillionClientIntegration: The Nillion client instance.
+        """
         if self.__nillion_client is None:
             self.__nillion_client = NillionClientIntegration(
                 self.fl_client.client_info.client_id,
@@ -39,6 +60,9 @@ class FederatedLearningClient(object):
         expected_results = len(parameters) // learning_request.batch_size
 
         def store_secrets_thread():
+            """
+            Thread function to store secrets.
+            """
             self.store_secrets(
                 parameters,
                 learning_request.program_id,
@@ -46,19 +70,21 @@ class FederatedLearningClient(object):
                 learning_request.batch_size,
             )
 
+        # Start the thread to store secrets
         self.store_secret_thread = threading.Thread(target=store_secrets_thread)
         self.store_secret_thread.start()
 
+        # Retrieve and process new parameters
         new_parameters = self.nillion_client.get_compute_result(expected_results)
-
         new_parameters = sorted(new_parameters, key=lambda x: x[0])
         new_parameters = np.concatenate([x[1] for x in new_parameters])
         self.parameters = new_parameters
 
-        logger.debug(f"Waiting for thread to join()...")
+        # Wait for the secrets storage thread to finish
+        logger.debug("Waiting for thread to join()...")
         self.store_secret_thread.join()
         self.store_secret_thread = None
-        logger.info(f"New Parameters: {len(self.parameters)}")
+        logger.info("New Parameters: %d", len(self.parameters))
 
     def fit(self, parameters):
         """
@@ -70,7 +96,8 @@ class FederatedLearningClient(object):
         Returns:
             numpy.ndarray: Updated model parameters.
         """
-        pass
+        # Placeholder for model fitting logic, return an array to avoid E1111
+        return np.array(parameters) if parameters is not None else np.array([])
 
     def store_secrets(self, parameters, program_id, user_id, batch_size):
         """
@@ -89,7 +116,7 @@ class FederatedLearningClient(object):
 
         secret_name = chr(ord("A") + self.fl_client.client_info.client_id)
 
-        logger.debug(f"Parameters: {divmod(len(parameters), batch_size)}")
+        logger.debug("Parameters: %s", divmod(len(parameters), batch_size))
         for batch_start in range(0, len(parameters), batch_size):
             if self.stop_event.is_set():
                 logger.warning("Stopping store_secrets operation...")
@@ -102,7 +129,14 @@ class FederatedLearningClient(object):
             )
             # Prepare a response
             logger.debug(
-                f"Storing secret {secret_name} for batch {batch_id}: store_id {store_id} = [{np.concatenate([batch[:3], batch[-3:]])} {batch.shape}],  party_id {self.nillion_client.party_id}, token {self.fl_client.client_info.token}"
+                "Storing secret %s for batch %d: store_id %s = [%s %s], party_id %s, token %s",
+                secret_name,
+                batch_id,
+                store_id,
+                np.concatenate([batch[:3], batch[-3:]]),
+                batch.shape,
+                self.nillion_client.party_id,
+                self.fl_client.client_info.token,
             )
             self.fl_client.send_store_id(
                 store_id,
@@ -111,9 +145,13 @@ class FederatedLearningClient(object):
                 batch_id,
             )
 
-    def start_client(
-        self,
-    ):
+    def start_client(self):
+        """
+        Start the federated learning client.
+
+        This method registers the client, initializes the Nillion client, and starts
+        the learning process.
+        """
         self.fl_client.register_client(num_parameters=self.num_parameters)
         self.nillion_client.init()
         self.fl_client.start_learning(callback=self.learning_iteration)
@@ -126,7 +164,7 @@ def main():
     """
     Main function to create and start a FederatedLearningClient.
     """
-    client = FederatedLearningClient(None, None, None)
+    client = FederatedLearningClient(host="localhost", port=50051, num_parameters=1000)
     client.start_client()
 
 

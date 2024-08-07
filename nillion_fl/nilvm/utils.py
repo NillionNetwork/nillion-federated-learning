@@ -49,7 +49,7 @@ def async_timer(file_path: os.PathLike) -> Callable:
             result = await func(*args, **kwargs)
             end_time = time.time()
             elapsed_time = end_time - start_time
-            with open(file_path, "a") as file:
+            with open(file_path, "a", encoding="utf-8") as file:
                 file.write(f"{elapsed_time:.6f},\n")
             return result
 
@@ -58,8 +58,9 @@ def async_timer(file_path: os.PathLike) -> Callable:
     return decorator
 
 
+# pylint: disable=too-many-arguments
 async def store_program(
-    client: nillion.NillionClient,
+    client: "nillion.NillionClient",
     payments_wallet: LocalWallet,
     payments_client: LedgerClient,
     user_id: str,
@@ -73,6 +74,8 @@ async def store_program(
 
     Args:
         client (nillion.NillionClient): Nillion client.
+        payments_wallet (LocalWallet): Payments wallet.
+        payments_client (LedgerClient): Payments client.
         user_id (str): User ID.
         cluster_id (str): Cluster ID.
         program_name (str): Program name.
@@ -82,10 +85,12 @@ async def store_program(
     Returns:
         str: Program ID.
     """
-
+    # fmt: off
+    # pylint: disable=no-member
     quote_store_program = await get_quote(
-        client, nillion.Operation.store_program(program_mir_path), cluster_id
+        client, nillion.Operation.store_program(program_mir_path), cluster_id # type: ignore[attr-defined] # fmt: off # pylint: disable=line-too-long
     )
+    # fmt: on
 
     receipt_store_program = await pay_with_quote(
         quote_store_program, payments_wallet, payments_client
@@ -98,42 +103,42 @@ async def store_program(
 
     program_id = f"{user_id}/{program_name}"
     if verbose:
-        logger.debug(f"Stored program. action_id: {action_id}")
-        logger.debug(f"Stored program_id: {program_id}")
+        logger.debug("Stored program. action_id: %s", action_id)
+        logger.debug("Stored program_id: %s", program_id)
     return program_id
 
 
+# pylint: disable=too-many-arguments
 async def store_secret_array(
-    client: nillion.NillionClient,
+    client: "nillion.NillionClient",
     payments_wallet: LocalWallet,
     payments_client: LedgerClient,
     cluster_id: str,
-    program_id: str,
     secret_array: np.ndarray,
     secret_name: str,
     nada_type: Any,
     ttl_days: int = 1,
-    permissions: nillion.Permissions = None,
+    permissions: "nillion.Permissions" = None,
 ):
     """
     Asynchronous function to store secret arrays on the nillion client.
 
     Args:
         client (nillion.NillionClient): Nillion client.
+        payments_wallet (LocalWallet): Payments wallet.
+        payments_client (LedgerClient): Payments client.
         cluster_id (str): Cluster ID.
-        program_id (str): Program ID.
-        party_id (str): Party ID.
-        party_name (str): Party name.
         secret_array (np.ndarray): Secret array.
-        name (str): Secrets name.
+        secret_name (str): Secrets name.
         nada_type (Any): Nada type.
+        ttl_days (int): Time to live in days.
         permissions (nillion.Permissions): Optional Permissions.
-
 
     Returns:
         str: Store ID.
     """
-
+    # fmt: off
+    # pylint: disable=no-member
     # Create a secret
     stored_secret = nillion.NadaValues(
         na_client.array(secret_array, secret_name, nada_type)
@@ -142,11 +147,12 @@ async def store_secret_array(
     # Get cost quote, then pay for operation to store the secret
     receipt_store = await get_quote_and_pay(
         client,
-        nillion.Operation.store_values(stored_secret, ttl_days=ttl_days),
+        nillion.Operation.store_values(stored_secret, ttl_days=ttl_days), # type: ignore[attr-defined] # fmt: off # pylint: disable=line-too-long
         payments_wallet,
         payments_client,
         cluster_id,
     )
+    # fmt: on
 
     # Store a secret, passing in the receipt that shows proof of payment
     store_id = await client.store_values(
@@ -155,35 +161,37 @@ async def store_secret_array(
     return store_id
 
 
+# pylint: disable=too-many-arguments
 async def store_secret_value(
-    client: nillion.NillionClient,
+    client: "nillion.NillionClient",
     payments_wallet: LocalWallet,
     payments_client: LedgerClient,
     cluster_id: str,
-    program_id: str,
     secret_value: Any,
     secret_name: str,
     nada_type: Any,
     ttl_days: int = 1,
-    permissions: nillion.Permissions = None,
+    permissions: "nillion.Permissions" = None,
 ):
     """
     Asynchronous function to store secret values on the nillion client.
 
     Args:
         client (nillion.NillionClient): Nillion client.
+        payments_wallet (LocalWallet): Payments wallet.
+        payments_client (LedgerClient): Payments client.
         cluster_id (str): Cluster ID.
-        program_id (str): Program ID.
-        party_id (str): Party ID.
-        party_name (str): Party name.
         secret_value (Any): Secret single value.
-        name (str): Secrets name.
+        secret_name (str): Secrets name.
         nada_type (Any): Nada type.
+        ttl_days (int): Time to live in days.
         permissions (nillion.Permissions): Optional Permissions.
 
     Returns:
         str: Store ID.
     """
+    # fmt: off
+    # pylint: disable=no-member
     if nada_type == na.Rational:
         secret_value = round(secret_value * 2 ** na.get_log_scale())
         nada_type = nillion.Integer
@@ -201,11 +209,12 @@ async def store_secret_value(
     # Get cost quote, then pay for operation to store the secret
     receipt_store = await get_quote_and_pay(
         client,
-        nillion.Operation.store_values(stored_secret, ttl_days=ttl_days),
+        nillion.Operation.store_values(stored_secret, ttl_days=ttl_days), # type: ignore[attr-defined] # fmt: off # pylint: disable=line-too-long
         payments_wallet,
         payments_client,
         cluster_id,
     )
+    # fmt: on
 
     # Store a secret, passing in the receipt that shows proof of payment
     store_id = await client.store_values(
@@ -214,15 +223,16 @@ async def store_secret_value(
     return store_id
 
 
+# pylint: disable=too-many-arguments
 async def compute(
-    client: nillion.NillionClient,
+    client: "nillion.NillionClient",
     payments_wallet: LocalWallet,
     payments_client: LedgerClient,
     program_id: str,
     cluster_id: str,
-    compute_bindings: nillion.ProgramBindings,
+    compute_bindings: "nillion.ProgramBindings",
     store_ids: List[str],
-    computation_time_secrets: nillion.NadaValues,
+    computation_time_secrets: "nillion.NadaValues",
     verbose: bool = True,
 ) -> Dict[str, Any]:
     """
@@ -230,6 +240,9 @@ async def compute(
 
     Args:
         client (nillion.NillionClient): Nillion client.
+        payments_wallet (LocalWallet): Payments wallet.
+        payments_client (LedgerClient): Payments client.
+        program_id (str): Program ID.
         cluster_id (str): Cluster ID.
         compute_bindings (nillion.ProgramBindings): Compute bindings.
         store_ids (List[str]): List of data store IDs.
@@ -239,16 +252,18 @@ async def compute(
     Returns:
         Dict[str, Any]: Result of computation.
     """
+    # fmt: off
+    # pylint: disable=no-member
     receipt_compute = await get_quote_and_pay(
         client,
-        nillion.Operation.compute(program_id, computation_time_secrets),
+        nillion.Operation.compute(program_id, computation_time_secrets), # type: ignore[attr-defined] # fmt: off # pylint: disable=line-too-long
         payments_wallet,
         payments_client,
         cluster_id,
     )
 
     # Compute, passing all params including the receipt that shows proof of payment
-    uuid = await client.compute(
+    await client.compute(
         cluster_id,
         compute_bindings,
         store_ids,
@@ -260,13 +275,16 @@ async def compute(
         if isinstance(compute_event, nillion.ComputeFinishedEvent):
             if verbose:
                 logger.debug(
-                    f"✅  Compute complete for compute_id {compute_event.uuid}"
+                    "✅  Compute complete for compute_id %s",
+                    compute_event.uuid
                 )
-                logger.debug(f"🖥️  The result is {compute_event.result.value}")
+                logger.debug("🖥️  The result is %s", compute_event.result.value)
             return compute_event.result.value
+    # fmt: on
 
 
 class JsonDict(dict):
+    """A dictionary class with JSON serialization and deserialization capabilities."""
 
     @staticmethod
     def from_json(json_str: str) -> "JsonDict":
@@ -288,7 +306,6 @@ class JsonDict(dict):
         Returns:
             str: JSON string.
         """
-
         return json.dumps(self)
 
     @staticmethod
@@ -302,9 +319,9 @@ class JsonDict(dict):
         Returns:
             JsonDict: JsonDict object.
         """
-        logger.debug(f"Loading JsonDict from file: {file_path}")
+        logger.debug("Loading JsonDict from file: %s", file_path)
 
-        with open(file_path, "r") as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             return JsonDict(json.load(file))
 
     def to_json_file(self, file_path: os.PathLike) -> None:
@@ -314,6 +331,6 @@ class JsonDict(dict):
         Args:
             file_path (os.PathLike): File path.
         """
-        logger.debug(f"Storing JsonDict to file: {file_path}")
-        with open(file_path, "w") as file:
+        logger.debug("Storing JsonDict to file: %s", file_path)
+        with open(file_path, "w", encoding="utf-8") as file:
             json.dump(self, file)

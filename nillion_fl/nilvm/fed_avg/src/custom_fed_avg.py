@@ -1,16 +1,13 @@
-"""Main Nada program"""
+"""This is an example file to showcase how the resulting output would look like"""
 
-import functools
-import inspect
-import time
 from typing import List
 
 # Step 0: Nada Numpy is imported with this line
 import nada_numpy as na
-from nada_dsl import *
+from nada_dsl import Input, Output, PublicInteger, SecretInteger
 
 NUM_PARTIES = 2
-DIM = 100
+DIM = 1000
 
 
 def nada_main() -> List[Output]:
@@ -31,15 +28,13 @@ def nada_main() -> List[Output]:
     )  # This is the program in execution order
 
     input_arrays = [
-        na.array([DIM], input_parties[i], chr(ord("A") + i), SecretInteger)
+        na.array([DIM], party, chr(ord("A") + i), SecretInteger)
         for i, party in enumerate(input_parties)
     ]
 
     result = input_arrays[0]
     for array in input_arrays[1:]:
         result += array
-
-    # result = result / Integer(NUM_PARTIES)
 
     # Result is output to all parties
     outputs = []

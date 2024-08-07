@@ -1,33 +1,27 @@
-"""Dot Product example script"""
+""" The NillionNetworkClient class is a client"""
 
 import argparse
 import asyncio
 import concurrent.futures
 import os
-from functools import partial
 
 import nada_numpy.client as na_client
 import numpy as np
 import py_nillion_client as nillion
-from cosmpy.aerial.client import LedgerClient
-from cosmpy.aerial.wallet import LocalWallet
-from cosmpy.crypto.keypairs import PrivateKey
-from dotenv import load_dotenv
-from nillion_python_helpers import (create_nillion_client,
-                                    create_payments_config, get_quote,
-                                    get_quote_and_pay, pay_with_quote)
-from py_nillion_client import NodeKey, UserKey
+from nillion_python_helpers import get_quote, pay_with_quote
 
 from nillion_fl.logs import logger
 from nillion_fl.nilvm.component import NillionNetworkComponent
 from nillion_fl.nilvm.utils import JsonDict, store_secret_array
 
 home = os.getenv("HOME")
-# load_dotenv(f"{home}/.config/nillion/nillion-devnet.env")
-# load_dotenv(f"/workspaces/ai/.nillion-testnet.env")
 
 
 class NillionNetworkClient(NillionNetworkComponent):
+    """
+    A client for interacting with the Nillion Network.
+    Handles array storage, computation, and result retrieval.
+    """
 
     def __init__(
         self,
@@ -35,33 +29,39 @@ class NillionNetworkClient(NillionNetworkComponent):
         num_parties,
         filename=f"{home}/.config/nillion/nillion-devnet.env",
     ):
-        logger.info(f"🚀  Initializing NillionNetworkClient with client_id {client_id}")
+        logger.info(
+            "🚀  Initializing NillionNetworkClient with client_id %s", client_id
+        )
         super().__init__(client_id, num_parties, filename)
 
     def init(self):
-        pass
+        """Initialize the client. Currently a placeholder method."""
+        return None
 
     async def store_array(self, array, secret_name, program_id, server_user_id):
         """
         Stores the given parameters as a secret array on the Nillion network.
 
         Args:
-            parameters (np.ndarray): The parameters to store as a secret array
+            array (np.ndarray): The array to store as a secret
+            secret_name (str): The name of the secret
             program_id (str): The program ID to associate with the secret array
-            user_id (str): The user ID to associate with the secret array
-            party_id (str): The party ID to associate with the secret array
+            server_user_id (str): The server user ID to associate with the secret array
+
+        Returns:
+            str: The store ID of the secret array
         """
-        # Create a permissions object to attach to the stored secret
-        permissions = nillion.Permissions.default_for_user(self.client.user_id)
+
+        permissions = nillion.Permissions.default_for_user(  # fmt: off # pylint: disable=no-member
+            self.client.user_id
+        )
         permissions.add_compute_permissions({server_user_id: {program_id}})
 
-        # Create a secret
         store_id = await store_secret_array(
             self.client,
             self.payments_wallet,
             self.payments_client,
             self.cluster_id,
-            program_id,
             array,
             secret_name,
             na_client.SecretRational,
@@ -74,14 +74,23 @@ class NillionNetworkClient(NillionNetworkComponent):
     async def store_arrays(self, arrays, secret_name, program_id, server_user_id):
         """
         Stores multiple arrays using thread parallelism, while maintaining async compatibility.
+
+        Args:
+            arrays (List[np.ndarray]): The arrays to store
+            secret_name (str): The name of the secrets
+            program_id (str): The program ID to associate with the secret arrays
+            server_user_id (str): The server user ID to associate with the secret arrays
+
+        Returns:
+            List[str]: The store IDs of the secret arrays
         """
-        # Create a permissions object to attach to the stored secret
-        permissions = nillion.Permissions.default_for_user(self.client.user_id)
+        permissions = nillion.Permissions.default_for_user(  # fmt: off # pylint: disable=no-member
+            self.client.user_id
+        )
         permissions.add_compute_permissions({server_user_id: {program_id}})
 
-        # Create secrets
         stored_secrets = [
-            nillion.NadaValues(
+            nillion.NadaValues(  # fmt: off # pylint: disable=no-member
                 na_client.array(array, secret_name, na_client.SecretRational)
             )
             for array in arrays
@@ -90,7 +99,9 @@ class NillionNetworkClient(NillionNetworkComponent):
         async def get_quote_wrapper(stored_secret):
             return await get_quote(
                 self.client,
-                nillion.Operation.store_values(stored_secret, ttl_days=1),
+                nillion.Operation.store_values(  # pylint: disable=no-member
+                    stored_secret, ttl_days=1
+                ),
                 self.cluster_id,
             )
 
@@ -102,7 +113,6 @@ class NillionNetworkClient(NillionNetworkComponent):
                 for stored_secret in stored_secrets
             ]
 
-            # Wait for all futures to complete
             quotes = await asyncio.gather(*futures)
 
         async def pay_with_quote_wrapper(quote):
@@ -132,32 +142,54 @@ class NillionNetworkClient(NillionNetworkComponent):
                 )
                 for stored_secret, receipt_store in zip(stored_secrets, receipts_store)
             ]
-
             # Wait for all futures to complete
             store_ids = await asyncio.gather(*futures)
 
         return store_ids
 
     async def get_compute_results_from_nillion(self, num_results):
+        """
+        Retrieves compute results from the Nillion network.
+
+        Args:
+            num_results (int): The number of results to retrieve
+
+        Returns:
+            List: A list of compute results
+        """
         compute_results = []
         logger.info("⌛ Waiting for result...")
         logger.info(
-            f"🔍  Current compute results: {len(compute_results)} / {num_results}"
+            "🔍  Current compute results: %d / %d", len(compute_results), num_results
         )
         while len(compute_results) < num_results:
             compute_event = await self.client.next_compute_event()
-            if isinstance(compute_event, nillion.ComputeFinishedEvent):
+            if isinstance(
+                compute_event,
+                nillion.ComputeFinishedEvent,  # fmt: off # pylint: disable=no-member
+            ):
                 compute_results.append(compute_event.result.value)
                 logger.info(
-                    f"🔍  Current compute results: {len(compute_results)} / {num_results}"
+                    "🔍  Current compute results: %d / %d",
+                    len(compute_results),
+                    num_results,
                 )
                 logger.debug(
-                    f"✅  Compute complete for compute_id {compute_event.uuid}"
+                    "✅  Compute complete for compute_id %s", compute_event.uuid
                 )
-                logger.debug(f"🖥️  The result is {compute_event.result.value}")
+                logger.debug("🖥️  The result is %s", compute_event.result.value)
         return compute_results
 
     async def get_compute_result(self, num_results=1):
+        """
+        Retrieves and processes compute results from the Nillion network.
+
+        Args:
+            num_results (int): The number of results to retrieve
+
+        Returns:
+            List[Tuple]: A list of tuples containing program order and result arrays
+        """
         results = await self.get_compute_results_from_nillion(num_results)
         output_tuples = []
         for result in results:
@@ -168,9 +200,9 @@ class NillionNetworkClient(NillionNetworkComponent):
                     result[f"my_output_{i}"]
                 )  # Format specific for fed_avg
             logger.debug(
-                "\n"
-                f"📊  Result array: {result_array}"
-                f"\n📊  Program order: {result['program_order']}"
+                "📊  Result array: %s \n📊  Program order: %s",
+                result_array,
+                result["program_order"],
             )
             output_tuples.append(
                 (result["program_order"], result_array / self.num_parties)
@@ -179,6 +211,19 @@ class NillionNetworkClient(NillionNetworkComponent):
 
 
 async def main(batch_size, num_parties, client_id, secret_name, num_batches):
+    """
+    Main function to run the Nillion Network client.
+
+    Args:
+        batch_size (int): The number of secrets in the computation
+        num_parties (int): The number of parties in the computation
+        client_id (int): The client ID number
+        secret_name (str): The name of the secret being stored
+        num_batches (int): The number of concurrent batches being sent
+
+    Returns:
+        List[Tuple]: A list of tuples containing program order and result arrays
+    """
     program_config = JsonDict.from_json_file("/tmp/fed_avg.json")
     program_id = program_config["program_id"]
     server_user_id = program_config["server_user_id"]
@@ -220,7 +265,6 @@ if __name__ == "__main__":
         type=int,
         help="The number of parties in the computation",
     )
-
     parser.add_argument(
         "client_id",
         type=int,
@@ -239,6 +283,6 @@ if __name__ == "__main__":
             args.num_parties,
             args.client_id,
             args.secret_name,
-            args.num_threads,
+            args.num_batches,
         )
     )
