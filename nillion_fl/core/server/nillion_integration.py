@@ -15,16 +15,15 @@ class NillionServerIntegration:
         user_id (str): User identifier from the Nillion network server.
     """
 
-    def __init__(self, num_parties, program_number, batch_size):
+    def __init__(self, num_parties, batch_size):
         """
         Initializes the NillionServerIntegration with the specified parameters.
 
         Args:
             num_parties (int): The number of parties involved in the federated network.
-            program_number (int): Identifier for the program being used.
             batch_size (int): Size of the data batch to be compiled for the program.
         """
-        self.nillion_server = FedAvgNillionNetworkServer(num_parties, program_number)
+        self.nillion_server = FedAvgNillionNetworkServer(num_parties)
         self.nillion_server.compile_program(batch_size)
         self.program_id = asyncio.run(self.nillion_server.store_program())
         self.user_id = self.nillion_server.user_id

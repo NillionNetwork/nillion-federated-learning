@@ -4,10 +4,11 @@ from typing import List
 
 # Step 0: Nada Numpy is imported with this line
 import nada_numpy as na
-from nada_dsl import Output, PublicInteger, Input, SecretInteger
+from nada_dsl import Input, Output, PublicInteger, SecretInteger
 
 NUM_PARTIES = 2
 DIM = 100
+
 
 def nada_main() -> List[Output]:
     """

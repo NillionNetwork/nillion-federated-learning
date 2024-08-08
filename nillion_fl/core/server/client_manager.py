@@ -66,8 +66,11 @@ class ClientManager:
                 client_id,
                 uuid_str(token),
             )
-            return request.model_size, fl_pb2.ClientInfo(  # fmt: off # pylint: disable=no-member
-                client_id=client_id, token=token, num_parties=self.num_parties
+            return (
+                request.model_size,
+                fl_pb2.ClientInfo(  # fmt: off # pylint: disable=no-member
+                    client_id=client_id, token=token, num_parties=self.num_parties
+                ),
             )
 
     @property

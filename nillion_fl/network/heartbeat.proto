@@ -1,0 +1,16 @@
+// heartbeat.proto
+syntax = "proto3";
+
+service HeartbeatService {
+  rpc SendHeartbeat(HeartbeatRequest) returns (HeartbeatResponse) {}
+}
+
+message HeartbeatRequest {
+  string client_id = 1;
+  int32 status_code = 2;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+  int32 status_code = 2;
+}

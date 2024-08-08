@@ -30,7 +30,7 @@ class FederatedLearningServer(fl_pb2_grpc.FederatedLearningServiceServicer):
             host (str): The server host.
             port (int): The server port.
             config (dict): Configuration dictionary containing 'num_parties',
-                           'program_number', and 'batch_size'.
+                and 'batch_size'.
         """
         if config is None:
             config = {"num_parties": 2, "program_number": 10, "batch_size": 1000}
@@ -43,7 +43,7 @@ class FederatedLearningServer(fl_pb2_grpc.FederatedLearningServiceServicer):
 
         # Initialize NillionServerIntegration for federated learning integration
         self.nillion_integration = NillionServerIntegration(
-            config["num_parties"], config["program_number"], config["batch_size"]
+            config["num_parties"], config["batch_size"]
         )
 
         # Initialize LearningManager to handle the learning iterations
