@@ -3,7 +3,7 @@
 import json
 import os
 import time
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, List, Optional
 
 import nada_numpy as na
 import nada_numpy.client as na_client
@@ -118,7 +118,7 @@ async def store_secret_array(
     secret_name: str,
     nada_type: Any,
     ttl_days: int = 1,
-    permissions: "nillion.Permissions" = None,
+    permissions: Optional["nillion.Permissions"] = None,
 ):
     """
     Asynchronous function to store secret arrays on the nillion client.
@@ -171,7 +171,7 @@ async def store_secret_value(
     secret_name: str,
     nada_type: Any,
     ttl_days: int = 1,
-    permissions: "nillion.Permissions" = None,
+    permissions: Optional["nillion.Permissions"] = None,
 ):
     """
     Asynchronous function to store secret values on the nillion client.
@@ -234,7 +234,7 @@ async def compute(
     store_ids: List[str],
     computation_time_secrets: "nillion.NadaValues",
     verbose: bool = True,
-) -> Dict[str, Any]:
+):
     """
     Asynchronous function to perform computation on the nillion client.
 
@@ -250,7 +250,7 @@ async def compute(
         verbose (bool, optional): Verbosity level. Defaults to True.
 
     Returns:
-        Dict[str, Any]: Result of computation.
+        object: Result of computation.
     """
     # fmt: off
     # pylint: disable=no-member
