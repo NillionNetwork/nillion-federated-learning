@@ -65,6 +65,7 @@ class FederatedLearningServer(fl_pb2_grpc.FederatedLearningServiceServicer):
         Returns:
             response_message: The response message after registration.
         """
+        logger.debug("Registering client")
         self.learning_manager.model_size, response_message = (
             self.client_manager.register_client(request, context)
         )
@@ -81,6 +82,7 @@ class FederatedLearningServer(fl_pb2_grpc.FederatedLearningServiceServicer):
         Yields:
             message: Messages to be sent to the clients during the learning iteration.
         """
+        logger.debug("Scheduling learning iteration")
         stream_id = self.learning_manager.schedule_learning_iteration(
             request_iterator, context
         )
