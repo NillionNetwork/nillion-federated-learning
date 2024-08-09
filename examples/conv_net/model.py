@@ -1,6 +1,6 @@
 import torch
-from torch import nn, optim
 import torch.nn.functional as F
+from torch import nn, optim
 
 
 class NeuralNet(nn.Module):
@@ -16,12 +16,11 @@ class NeuralNet(nn.Module):
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = torch.flatten(x, 1) # flatten all dimensions except batch
+        x = torch.flatten(x, 1)  # flatten all dimensions except batch
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
-
 
 
 if __name__ == "__main__":
@@ -37,7 +36,9 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
     # Generate data
-    trainloaders, valloaders = load_datasets(1)  # We're using only one client for this example
+    trainloaders, valloaders = load_datasets(
+        1
+    )  # We're using only one client for this example
 
     for epoch in range(num_epochs):
         running_loss = 0.0
@@ -56,12 +57,12 @@ if __name__ == "__main__":
 
             # print statistics
             running_loss += loss.item()
-            if i % 2000 == 1999:    # print every 2000 mini-batches
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
+            if i % 2000 == 1999:  # print every 2000 mini-batches
+                print(f"[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}")
                 running_loss = 0.0
-    
+
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss:.4f}")
-    
+
         correct = 0
         total = 0
         # since we're not training, we don't need to calculate the gradients for our outputs
@@ -75,6 +76,8 @@ if __name__ == "__main__":
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
-        print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')
+        print(
+            f"Accuracy of the network on the 10000 test images: {100 * correct // total} %"
+        )
     print("Finished Training")
     print(model.state_dict())

@@ -61,7 +61,7 @@ if __name__ == "__main__":
                 predicted = (predicted > 0.5).float()
                 total += predicted.size(0)
                 correct += (predicted == labels).sum().item()
-                #if predicted != labels:
+                # if predicted != labels:
                 #    print(f"Predicted: {predicted}, Actual: {labels}")
 
         accuracy = 100 * correct / total

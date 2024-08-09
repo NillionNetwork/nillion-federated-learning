@@ -177,7 +177,7 @@ class NillionNetworkClient(NillionNetworkComponent):
                 logger.debug(
                     "✅  Compute complete for compute_id %s", compute_event.uuid
                 )
-                #logger.debug("🖥️  The result is %s", compute_event.result.value)
+                # logger.debug("🖥️  The result is %s", compute_event.result.value)
         return compute_results
 
     async def get_compute_result(self, num_results=1):

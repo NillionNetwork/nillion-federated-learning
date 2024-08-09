@@ -37,9 +37,7 @@ def load_datasets(
     num_samples: int = 1000,
     num_features: int = 10,
 ):
-    dataset = NeuralNetDataset(
-        num_samples, num_features
-    )  # 1000 samples, 10 features
+    dataset = NeuralNetDataset(num_samples, num_features)  # 1000 samples, 10 features
 
     # Split dataset into `num_clients` partitions
     partition_size = len(dataset) // num_clients

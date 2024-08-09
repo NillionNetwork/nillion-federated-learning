@@ -1,4 +1,6 @@
 import argparse
+import os
+import uuid
 from collections import OrderedDict
 
 import numpy as np
@@ -22,6 +24,28 @@ class NillionFLClient(PytorchFLClient):
         self.config = config
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+
+        self.__iteration = 0
+        self.path = os.path.join(f"/tmp/", f"model_{uuid.uuid4()}")
+        while os.path.exists(self.path):
+            self.path = os.path.join(f"/tmp/", f"model_{uuid.uuid4()}")
+        os.makedirs(self.path)
+
+    @property
+    def iteration(self):
+        self.__iteration += 1
+        return self.__iteration - 1
+
+    def save_model(self):
+        """
+        Saves the model to a file.
+
+        Returns:
+            None
+        """
+        path = os.path.join(self.path, f"iteration_{self.iteration}.pth")
+        logger.info(f"Saving model to {self.path}")
+        torch.save(self.net.state_dict(), path)
 
     def train(self):
         """
@@ -49,11 +73,12 @@ class NillionFLClient(PytorchFLClient):
 
                 # print statistics
                 running_loss += loss.item()
-                if i % 2000 == 1999:    # print every 2000 mini-batches
-                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
+                if i % 2000 == 1999:  # print every 2000 mini-batches
+                    print(f"[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}")
                     running_loss = 0.0
-    
+
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {running_loss:.4f}")
+        self.save_model()
 
     def local_evaluate(self):
         """
@@ -76,7 +101,9 @@ class NillionFLClient(PytorchFLClient):
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
-        logger.warning(f"Accuracy of the network on the {total} validation images: {100 * correct / total}%")
+        logger.warning(
+            f"Accuracy of the network on the {total} validation images: {100 * correct / total}%"
+        )
         return correct / total
 
 

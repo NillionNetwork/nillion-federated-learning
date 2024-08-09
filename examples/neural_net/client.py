@@ -1,4 +1,6 @@
 import argparse
+import os
+import uuid
 from collections import OrderedDict
 
 import numpy as np
@@ -24,6 +26,28 @@ class NillionFLClient(PytorchFLClient):
         self.optimizer = optim.SGD(
             self.net.parameters(), lr=self.config["learning_rate"]
         )
+
+        self.__iteration = 0
+        self.path = os.path.join(f"/tmp/", f"model_{uuid.uuid4()}")
+        while os.path.exists(self.path):
+            self.path = os.path.join(f"/tmp/", f"model_{uuid.uuid4()}")
+        os.makedirs(self.path)
+
+    @property
+    def iteration(self):
+        self.__iteration += 1
+        return self.__iteration - 1
+
+    def save_model(self):
+        """
+        Saves the model to a file.
+
+        Returns:
+            None
+        """
+        path = os.path.join(self.path, f"iteration_{self.iteration}.pth")
+        logger.info(f"Saving model to {self.path}")
+        torch.save(self.net.state_dict(), path)
 
     def train(self):
         """
@@ -53,6 +77,7 @@ class NillionFLClient(PytorchFLClient):
 
             avg_loss = total_loss / len(self.trainloader)
             logger.warning(f"Epoch [{epoch+1}/{epochs}], Loss: {avg_loss:.4f}")
+        self.save_model()
 
     def local_evaluate(self):
         """
