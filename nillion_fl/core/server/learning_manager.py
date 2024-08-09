@@ -161,7 +161,7 @@ class LearningManager:
                     )
                     yield message
 
-                    if not self.learning_complete.wait(timeout=180):
+                    if not self.learning_complete.wait():
                         logger.warning(
                             "[SERVER][%s] Learning iteration timed out",
                             uuid_str(stream_id),

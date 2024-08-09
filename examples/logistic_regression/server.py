@@ -1,13 +1,8 @@
-from nillion_fl.server import FederatedLearningServer
+from nillion_fl.pytorch import PytorchFLServer
 
 
 def main():
-    FederatedLearningServer(
-        config={
-            "num_parties": 2,
-            "batch_size": 1000
-        }
-    ).serve()
+    PytorchFLServer(config={"num_parties": 2, "batch_size": 1000}).serve()
 
 
 if __name__ == "__main__":

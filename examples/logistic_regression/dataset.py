@@ -22,7 +22,6 @@ class LogisticRegressionDataset(Dataset):
         logger.info(f"True weights: {weights}")
         logits = np.dot(self.features, weights)
         self.labels = 1 / (1 + np.exp(-logits))
-        # self.labels = (self.labels > 0.5).astype(np.float32)
         self.labels = self.labels.reshape(-1, 1).astype(np.float32)
 
     def __len__(self):
