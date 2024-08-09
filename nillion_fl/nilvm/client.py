@@ -177,7 +177,7 @@ class NillionNetworkClient(NillionNetworkComponent):
                 logger.debug(
                     "✅  Compute complete for compute_id %s", compute_event.uuid
                 )
-                logger.debug("🖥️  The result is %s", compute_event.result.value)
+                #logger.debug("🖥️  The result is %s", compute_event.result.value)
         return compute_results
 
     async def get_compute_result(self, num_results=1):
@@ -200,8 +200,8 @@ class NillionNetworkClient(NillionNetworkComponent):
                     result[f"my_output_{i}"]
                 )  # Format specific for fed_avg
             logger.debug(
-                "📊  Result array: %s \n📊  Program order: %s",
-                result_array,
+                "📊  Result array (shape): %s \n📊  Program order: %s",
+                result_array.shape,
                 result["program_order"],
             )
             output_tuples.append(

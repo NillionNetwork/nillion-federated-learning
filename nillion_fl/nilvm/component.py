@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 from nillion_python_helpers import (create_nillion_client,
                                     create_payments_config)
 # pylint: disable=no-name-in-module
-from py_nillion_client import (NodeKey,  # Ensure the correct import paths
-                               UserKey)
+from py_nillion_client import NodeKey  # Ensure the correct import paths
+from py_nillion_client import UserKey
 
 home = os.getenv("HOME")
 # load_dotenv(f"{home}/.config/nillion/nillion-devnet.env")

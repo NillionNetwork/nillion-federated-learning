@@ -57,7 +57,11 @@ class FederatedLearningClient:
             learning_request: The learning request from the server.
         """
         parameters = self.fit(self.parameters)
-        expected_results = len(parameters) // learning_request.batch_size
+        expected_results, modulo = divmod(len(parameters), learning_request.batch_size)
+        if modulo > 0:
+            expected_results += 1
+
+
 
         def store_secrets_thread():
             """
@@ -78,7 +82,7 @@ class FederatedLearningClient:
         new_parameters = self.nillion_client.get_compute_result(expected_results)
         new_parameters = sorted(new_parameters, key=lambda x: x[0])
         new_parameters = np.concatenate([x[1] for x in new_parameters])
-        self.parameters = new_parameters
+        self.parameters = new_parameters[:self.num_parameters]
 
         # Wait for the secrets storage thread to finish
         logger.debug("Waiting for thread to join()...")

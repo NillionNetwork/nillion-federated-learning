@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.nada.bin
+# datasets for CIFAR 10
+dataset/
 
 # C extensions
 *.so

@@ -7,7 +7,7 @@ import nada_numpy as na
 from nada_dsl import Output, PublicInteger, Input, SecretInteger
 
 NUM_PARTIES = 2
-DIM = 1000
+DIM = 2500
 
 def nada_main() -> List[Output]:
     """

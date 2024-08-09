@@ -3,6 +3,7 @@ This module contains the FLClientCore class for participating in federated learn
 """
 
 import threading
+import time
 from typing import Callable
 
 import grpc
@@ -106,6 +107,7 @@ class FLClientCore:
             # This needs to be here to avoid a deadlock
             if response is not None:
                 yield response
+            time.sleep(5)
 
         logger.debug("[CLIENT][SEND] STOP")
 
