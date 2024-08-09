@@ -9,7 +9,7 @@ readme = "README.md"
 python = "^3.10"
 grpcio = "^1.64.1"
 grpcio-tools = "1.62.1"
-torch = {version="^2.3.1", optional=true}
+torch = {version="^2.3.1"}
 torchvision = {version="^0.18.1", optional=true}
 numpy = "^1.26.4"
 nada-dsl = "^0.5.0"
