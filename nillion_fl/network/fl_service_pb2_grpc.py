@@ -4,8 +4,9 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from nillion_fl.network import \
-    fl_service_pb2 as nillion__fl_dot_network_dot_fl__service__pb2
+from nillion_fl.network import (
+    fl_service_pb2 as nillion__fl_dot_network_dot_fl__service__pb2,
+)
 
 
 class FederatedLearningServiceStub(object):

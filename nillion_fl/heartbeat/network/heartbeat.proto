@@ -1,0 +1,11 @@
+// heartbeat.proto
+syntax = "proto3";
+
+service HeartbeatService {
+  rpc SubscribeToHeartbeat(stream Heartbeat) returns (stream Heartbeat) {}
+}
+
+message Heartbeat {
+  int32 status_code = 1;
+  string msg = 2;
+}
