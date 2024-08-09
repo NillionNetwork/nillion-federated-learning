@@ -7,11 +7,12 @@ from torch import nn, optim
 
 from examples.logistic_regression.dataset import load_datasets
 from examples.logistic_regression.model import LogisticRegression as Net
-from nillion_fl.pytorch import PytorchFLClient
 from nillion_fl.logs import logger
+from nillion_fl.pytorch import PytorchFLClient
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logger.debug(f"Training on {DEVICE} using PyTorch {torch.__version__}")
+
 
 class NillionFLClient(PytorchFLClient):
 
@@ -23,8 +24,6 @@ class NillionFLClient(PytorchFLClient):
         self.optimizer = optim.SGD(
             self.net.parameters(), lr=self.config["learning_rate"]
         )
-
- 
 
     def train(self):
         """
@@ -81,10 +80,12 @@ class NillionFLClient(PytorchFLClient):
 
 
 def run(client_id):
-    NUM_CLIENTS = 2       # Number of clients in the federated network
-    NUM_PARAMETERS = 1000  # Number of parameters for the Logistic Regression
-    NUM_SAMPLES = 10000  # Number of samples for the Logistic Regression dataset for all clients
-    net = Net(NUM_PARAMETERS) 
+    NUM_CLIENTS = 2  # Number of clients in the federated network
+    NUM_PARAMETERS = 750  # Number of parameters for the Logistic Regression
+    NUM_SAMPLES = (
+        10000  # Number of samples for the Logistic Regression dataset for all clients
+    )
+    net = Net(NUM_PARAMETERS)
 
     # Generate data
     trainloaders, valloaders = load_datasets(
